@@ -13,15 +13,11 @@ import com.kippu.trace.MainActivity
 import com.kippu.trace.R
 import com.kippu.trace.data.AppDatabase
 import com.kippu.trace.model.DateEvent
-import com.kippu.trace.utils.LanguageMode
-import com.kippu.trace.utils.LanguagePreferences
-import com.kippu.trace.utils.TextUtils
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
-import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -115,21 +111,6 @@ object TraceWidgetUpdater {
         }
     }
 
-    // 获取与应用内语言设置一致的本地化 Context
-    private fun getLocalizedContext(context: Context): Context {
-        val mode = LanguagePreferences.getLanguageMode(context)
-        val locale = when (mode) {
-            LanguageMode.SYSTEM -> Locale.getDefault()
-            LanguageMode.CHINESE -> Locale("zh")
-            LanguageMode.ENGLISH -> Locale("en")
-            LanguageMode.JAPANESE -> Locale("ja")
-        }
-        val config = Configuration(context.resources.configuration).apply {
-            setLocale(locale)
-        }
-        return context.createConfigurationContext(config)
-    }
-
     // 构建远程视图并填充数据
     private fun buildRemoteViews(context: Context, widgetSize: TraceWidgetSize, event: DateEvent?, appWidgetId: Int, widthPx: Int, heightPx: Int): RemoteViews {
         val views = RemoteViews(context.packageName, widgetSize.layoutRes)
@@ -164,19 +145,18 @@ object TraceWidgetUpdater {
 
             val dateText = formatTargetDate(event.targetDate)
             val days = calculateDays(event.targetDate).toString()
-            val localizedCtx = getLocalizedContext(context)
-            val prefix = localizedCtx.getString(if (event.isFuture) R.string.label_until else R.string.label_since)
+            val prefix = context.getString(if (event.isFuture) R.string.label_until else R.string.label_since)
 
             views.setTextViewText(R.id.widget_title, event.title)
             views.setTextViewText(R.id.widget_prefix, prefix)
             views.setTextViewText(R.id.widget_date, dateText)
             views.setTextViewText(R.id.widget_days, days)
-            views.setTextViewText(R.id.widget_day_unit, localizedCtx.getString(R.string.day_unit))
+            views.setTextViewText(R.id.widget_day_unit, context.getString(R.string.day_unit))
             
             views.setViewVisibility(R.id.widget_prefix, View.VISIBLE)
             views.setViewVisibility(R.id.widget_date, View.VISIBLE)
             
-            applySizeTuning(views, widgetSize, event.title, days.toLong())
+            applySizeTuning(views, widgetSize)
             // 点击有内容的小组件直接打开对应卡片详情页
             views.setOnClickPendingIntent(R.id.widget_root, createOpenAppIntent(context, event.id))
         }
@@ -184,48 +164,22 @@ object TraceWidgetUpdater {
         return views
     }
 
-    private fun applySizeTuning(views: RemoteViews, widgetSize: TraceWidgetSize, title: String, daysCount: Long) {
-        val isLongTitle = title.length > 8 || TextUtils.getVisualWidth(title) > 15f
-        val isLargeDays = daysCount >= 1000
-
+    private fun applySizeTuning(views: RemoteViews, widgetSize: TraceWidgetSize) {
         when (widgetSize) {
             TraceWidgetSize.TWO_BY_TWO -> {
-                val (titleSize, daysSize, prefixSize, unitSize) = when {
-                    isLongTitle && isLargeDays -> arrayOf(13f, 22f, 9f, 10f)
-                    isLargeDays -> arrayOf(14f, 26f, 10f, 11f)
-                    isLongTitle -> arrayOf(14f, 32f, 11f, 12f)
-                    else -> arrayOf(16f, 32f, 11f, 12f)
-                }
-                views.setTextViewTextSize(R.id.widget_title, TypedValue.COMPLEX_UNIT_SP, titleSize)
-                views.setTextViewTextSize(R.id.widget_prefix, TypedValue.COMPLEX_UNIT_SP, prefixSize)
-                views.setTextViewTextSize(R.id.widget_days, TypedValue.COMPLEX_UNIT_SP, daysSize)
-                views.setTextViewTextSize(R.id.widget_day_unit, TypedValue.COMPLEX_UNIT_SP, unitSize)
-                // 2x2 空间有限，不显示年月日
-                views.setViewVisibility(R.id.widget_date, View.GONE)
+                views.setTextViewTextSize(R.id.widget_title, TypedValue.COMPLEX_UNIT_SP, 16f)
+                views.setTextViewTextSize(R.id.widget_days, TypedValue.COMPLEX_UNIT_SP, 40f)
+                views.setTextViewTextSize(R.id.widget_day_unit, TypedValue.COMPLEX_UNIT_SP, 12f)
             }
             TraceWidgetSize.THREE_BY_TWO -> {
-                val (titleSize, daysSize, prefixSize, unitSize) = when {
-                    isLongTitle && isLargeDays -> arrayOf(17f, 30f, 10f, 11f)
-                    isLargeDays -> arrayOf(18f, 34f, 11f, 12f)
-                    isLongTitle -> arrayOf(18f, 42f, 12f, 13f)
-                    else -> arrayOf(20f, 42f, 12f, 13f)
-                }
-                views.setTextViewTextSize(R.id.widget_title, TypedValue.COMPLEX_UNIT_SP, titleSize)
-                views.setTextViewTextSize(R.id.widget_prefix, TypedValue.COMPLEX_UNIT_SP, prefixSize)
-                views.setTextViewTextSize(R.id.widget_days, TypedValue.COMPLEX_UNIT_SP, daysSize)
-                views.setTextViewTextSize(R.id.widget_day_unit, TypedValue.COMPLEX_UNIT_SP, unitSize)
+                views.setTextViewTextSize(R.id.widget_title, TypedValue.COMPLEX_UNIT_SP, 17f)
+                views.setTextViewTextSize(R.id.widget_days, TypedValue.COMPLEX_UNIT_SP, 42f)
+                views.setTextViewTextSize(R.id.widget_day_unit, TypedValue.COMPLEX_UNIT_SP, 13f)
             }
             TraceWidgetSize.FOUR_BY_TWO -> {
-                val (titleSize, daysSize, prefixSize, unitSize) = when {
-                    isLongTitle && isLargeDays -> arrayOf(18f, 28f, 12f, 12f)
-                    isLargeDays -> arrayOf(19f, 32f, 13f, 13f)
-                    isLongTitle -> arrayOf(20f, 40f, 14f, 14f)
-                    else -> arrayOf(22f, 40f, 14f, 14f)
-                }
-                views.setTextViewTextSize(R.id.widget_title, TypedValue.COMPLEX_UNIT_SP, titleSize)
-                views.setTextViewTextSize(R.id.widget_prefix, TypedValue.COMPLEX_UNIT_SP, prefixSize)
-                views.setTextViewTextSize(R.id.widget_days, TypedValue.COMPLEX_UNIT_SP, daysSize)
-                views.setTextViewTextSize(R.id.widget_day_unit, TypedValue.COMPLEX_UNIT_SP, unitSize)
+                views.setTextViewTextSize(R.id.widget_title, TypedValue.COMPLEX_UNIT_SP, 22f)
+                views.setTextViewTextSize(R.id.widget_days, TypedValue.COMPLEX_UNIT_SP, 48f)
+                views.setTextViewTextSize(R.id.widget_day_unit, TypedValue.COMPLEX_UNIT_SP, 14f)
             }
         }
     }

@@ -73,13 +73,11 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
-                android:ellipsize="end"
                 android:includeFontPadding="false"
                 android:shadowColor="#40000000"
                 android:shadowDx="0"
                 android:shadowDy="1"
                 android:shadowRadius="2"
-                android:singleLine="true"
                 android:textColor="#B3FFFFFF"
                 android:textSize="12sp" />
         </LinearLayout>
@@ -90,19 +88,6 @@
             android:layout_height="wrap_content"
             android:gravity="bottom"
             android:orientation="horizontal">
-
-            <TextView
-                android:id="@+id/widget_prefix"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="4dp"
-                android:includeFontPadding="false"
-                android:shadowColor="#40000000"
-                android:shadowDx="0"
-                android:shadowDy="1"
-                android:shadowRadius="2"
-                android:textColor="#CCFFFFFF"
-                android:textSize="14sp" />
 
             <TextView
                 android:id="@+id/widget_days"
@@ -134,5 +119,11 @@
                 android:textSize="14sp" />
         </LinearLayout>
     </LinearLayout>
+
+    <TextView
+        android:id="@+id/widget_prefix"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone" />
 
 </FrameLayout>

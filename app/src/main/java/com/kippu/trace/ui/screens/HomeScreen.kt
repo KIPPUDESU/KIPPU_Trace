@@ -11,12 +11,7 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -132,69 +127,34 @@ fun HomeScreen(
                 Text(text = stringResource(R.string.empty_timeline_hint), style = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.secondary))
             }
         } else {
-            val gridState = rememberLazyGridState()
-            BoxWithConstraints(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-                val columns = if (maxWidth >= 600.dp) 2 else 1
-
-                if (columns == 1) {
-                    // 手机：单列布局
-                    LazyColumn(
-                        state = lazyListState,
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 120.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+            LazyColumn(
+                state = lazyListState,
+                modifier = Modifier.fillMaxSize().padding(innerPadding),
+                contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 120.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                itemsIndexed(pinnedEventsState, key = { _, it -> "pinned_${it.id}" }) { _, event ->
+                    SwipeActionWrapper(
+                        isResetRequested = editingEvent == null && eventToDelete == null,
+                        isDeleting = eventToDelete?.id == event.id,
+                        isEditing = editingEvent?.id == event.id,
+                        onTrashClick = { eventToDelete = event },
+                        onEditClick = { editingEvent = event }
                     ) {
-                        itemsIndexed(pinnedEventsState, key = { _, it -> "pinned_${it.id}" }) { _, event ->
-                            SwipeActionWrapper(
-                                isResetRequested = editingEvent == null && eventToDelete == null,
-                                isDeleting = eventToDelete?.id == event.id,
-                                isEditing = editingEvent?.id == event.id,
-                                onTrashClick = { eventToDelete = event },
-                                onEditClick = { editingEvent = event }
-                            ) {
-                                // 编辑中的卡片直接读取 editingEvent 实时预览改动
-                                PinnedEventCard(event = if (editingEvent?.id == event.id) editingEvent!! else event, onClick = { onEventClick(event) })
-                            }
-                        }
-
-                        itemsIndexed(otherEventsState, key = { _, it -> it.id }) { _, event ->
-                            SwipeActionWrapper(
-                                isResetRequested = editingEvent == null && eventToDelete == null,
-                                isDeleting = eventToDelete?.id == event.id,
-                                isEditing = editingEvent?.id == event.id,
-                                onTrashClick = { eventToDelete = event },
-                                onEditClick = { editingEvent = event }
-                            ) {
-                                NormalEventCard(event = if (editingEvent?.id == event.id) editingEvent!! else event, onClick = { onEventClick(event) })
-                            }
-                        }
+                        // 编辑中的卡片直接读取 editingEvent 实时预览改动
+                        PinnedEventCard(event = if (editingEvent?.id == event.id) editingEvent!! else event, onClick = { onEventClick(event) })
                     }
-                } else {
-                    // 平板：双列网格布局
-                    val allEvents = pinnedEventsState.toList() + otherEventsState.toList()
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(2),
-                        state = gridState,
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 120.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                }
+
+                itemsIndexed(otherEventsState, key = { _, it -> it.id }) { _, event ->
+                    SwipeActionWrapper(
+                        isResetRequested = editingEvent == null && eventToDelete == null,
+                        isDeleting = eventToDelete?.id == event.id,
+                        isEditing = editingEvent?.id == event.id,
+                        onTrashClick = { eventToDelete = event },
+                        onEditClick = { editingEvent = event }
                     ) {
-                        items(allEvents, key = { "grid_${it.id}" }) { event ->
-                            SwipeActionWrapper(
-                                isResetRequested = editingEvent == null && eventToDelete == null,
-                                isDeleting = eventToDelete?.id == event.id,
-                                isEditing = editingEvent?.id == event.id,
-                                onTrashClick = { eventToDelete = event },
-                                onEditClick = { editingEvent = event }
-                            ) {
-                                if (event.isPinned) {
-                                    PinnedEventCard(event = if (editingEvent?.id == event.id) editingEvent!! else event, onClick = { onEventClick(event) })
-                                } else {
-                                    NormalEventCard(event = if (editingEvent?.id == event.id) editingEvent!! else event, onClick = { onEventClick(event) })
-                                }
-                            }
-                        }
+                        NormalEventCard(event = if (editingEvent?.id == event.id) editingEvent!! else event, onClick = { onEventClick(event) })
                     }
                 }
             }
