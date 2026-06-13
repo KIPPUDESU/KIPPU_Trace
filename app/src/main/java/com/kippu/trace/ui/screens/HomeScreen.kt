@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -66,6 +67,7 @@ import kotlin.math.roundToInt
 fun HomeScreen(
     events: List<DateEvent>,
     onAddClick: () -> Unit,
+    onTimelineClick: () -> Unit = {},
     onEventClick: (DateEvent) -> Unit,
     onDeleteEvent: (DateEvent) -> Unit,
     onUpdateEvent: (DateEvent) -> Unit = {},
@@ -121,6 +123,7 @@ fun HomeScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = onTimelineClick) { Icon(Icons.Default.Timeline, contentDescription = "Timeline") }
                     IconButton(onClick = onAddClick) { Icon(Icons.Default.Add, contentDescription = "Add") }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
@@ -551,6 +554,6 @@ fun EditDatePickerDialog(
 @Composable
 fun HomeScreenPreview() {
     com.kippu.trace.ui.theme.KIPPU_TraceTheme {
-        HomeScreen(events = emptyList(), onAddClick = {}, onEventClick = {}, onDeleteEvent = {})
+        HomeScreen(events = emptyList(), onAddClick = {}, onTimelineClick = {}, onEventClick = {}, onDeleteEvent = {})
     }
 }

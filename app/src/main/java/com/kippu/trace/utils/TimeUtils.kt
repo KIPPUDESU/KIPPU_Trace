@@ -24,7 +24,26 @@ data class DetailedTimeResult(
 
 object TimeUtils {
 
+    /**
+     * 将 UTC 毫秒时间戳转为 UTC 本地日期的 epochDay。
+     * 用于日期级排序和比较，忽略具体时分秒。
+     */
+    fun toEpochDay(targetDateMillis: Long): Long {
+        return Instant.ofEpochMilli(targetDateMillis)
+            .atZone(ZoneId.of("UTC"))
+            .toLocalDate()
+            .toEpochDay()
+    }
+
     // 正确处理时区
+
+    fun isFuture(targetDateMillis: Long): Boolean {
+        val systemZone = ZoneId.systemDefault()
+        val targetDate = Instant.ofEpochMilli(targetDateMillis)
+            .atZone(ZoneId.of("UTC"))
+            .toLocalDate()
+        return LocalDate.now(systemZone).isBefore(targetDate)
+    }
 
     fun getRelativeTime(targetDateMillis: Long): RelativeTimeResult {
         val systemZone = ZoneId.systemDefault()

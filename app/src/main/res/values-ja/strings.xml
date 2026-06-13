@@ -91,4 +91,16 @@
     <string name="restore_failed">復元に失敗しました: %s</string>
     <string name="unknown_error">不明なエラー</string>
     <string name="select_date">日付を選択</string>
+    <string name="timeline_page_title">タイムライン</string>
+    <string name="timeline_subtitle">時の流れの中で、すべての瞬間が記憶に値する</string>
+    <string name="timeline_empty_hint">ここにあなたの印を残そう</string>
+    <string name="timeline_now">現在</string>
+    <string name="timeline_scale_mode">タイムライン目盛スタイル</string>
+    <string name="timeline_scale_unified">統一目盛</string>
+    <string name="timeline_scale_dual">二重目盛（過去/未来独立）</string>
+    <string name="now_node_style">現在ノードスタイル</string>
+    <string name="now_style_rays">回転光線</string>
+    <string name="now_style_dots">調和光点</string>
+    <string name="timeline_settings">タイムライン設定</string>
+    <string name="timeline_settings_subtitle">目盛：%1$s · ノード：%2$s</string>
 </resources>

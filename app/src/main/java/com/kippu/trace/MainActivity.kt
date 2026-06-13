@@ -26,10 +26,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesomeMotion
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SentimentVeryDissatisfied
+import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -56,6 +58,7 @@ import androidx.navigation.compose.rememberNavController
 import coil.compose.AsyncImage
 import com.kippu.trace.model.DateEvent
 import com.kippu.trace.model.DisplayMode
+import com.kippu.trace.model.TimelineData
 import com.kippu.trace.ui.theme.KIPPU_TraceTheme
 import com.kippu.trace.utils.LanguageMode
 import com.kippu.trace.utils.LanguagePreferences
@@ -133,6 +136,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val eventViewModel: EventViewModel = viewModel()
             val events by eventViewModel.allEvents.collectAsState()
+            val timelineData by eventViewModel.timelineData.collectAsState()
             val context = this
             var themeMode by remember { mutableStateOf(ThemePreferences.getThemeMode(context)) }
             val darkTheme = when (themeMode) {
@@ -152,6 +156,7 @@ class MainActivity : ComponentActivity() {
             KIPPU_TraceTheme(darkTheme = darkTheme) {
                 MainApp(
                     events = events,
+                    timelineData = timelineData,
                     themeMode = themeMode,
                     onThemeModeChange = { mode ->
                         themeMode = mode
@@ -301,11 +306,14 @@ sealed class Screen(val route: String, val icon: ImageVector) {
     }
     data object Settings : Screen("settings", Icons.Default.Settings)
     data object Editor : Screen("editor", Icons.Default.Add)
+    data object Timeline : Screen("timeline", Icons.Default.Timeline)
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainApp(
     events: List<DateEvent> = emptyList(),
+    timelineData: TimelineData = TimelineData(emptyList(), emptyList(), 0),
     themeMode: ThemeMode = ThemeMode.SYSTEM,
     onThemeModeChange: (ThemeMode) -> Unit = {},
     onAddEvent: (DateEvent) -> Unit = {},
@@ -352,6 +360,7 @@ fun MainApp(
                             0 -> com.kippu.trace.ui.screens.HomeScreen(
                                 events = events,
                                 onAddClick = { navController.navigate(Screen.Editor.route) },
+                                onTimelineClick = { navController.navigate(Screen.Timeline.route) },
                                 onEventClick = { event ->
                                     navController.navigate(Screen.Detail.createRoute(event.id))
                                 },
@@ -414,6 +423,36 @@ fun MainApp(
                         },
                     )
                 }
+
+                composable(
+                    route = Screen.Timeline.route,
+                    enterTransition = { fadeIn(tween(500)) },
+                    exitTransition = { fadeOut(tween(500)) },
+                ) {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        com.kippu.trace.ui.screens.TimelineScreen(
+                            data = timelineData,
+                            onEventClick = { event ->
+                                navController.navigate(Screen.Detail.createRoute(event.id))
+                            },
+                        )
+
+                        // 左上角返回按钮（浮在时间轴上方）
+                        IconButton(
+                            onClick = { navController.popBackStack() },
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .statusBarsPadding()
+                                .padding(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = MaterialTheme.colorScheme.onBackground
+                            )
+                        }
+                    }
+                }
             }
 
             AnimatedVisibility(
@@ -423,9 +462,9 @@ fun MainApp(
                 modifier = Modifier.align(Alignment.BottomCenter)
             ) {
                 // 增加内边距 防止阴影被裁剪
-                Box(modifier = Modifier.padding(bottom = 24.dp, top = 12.dp, start = 12.dp, end = 12.dp)) {
+                Box(modifier = Modifier.padding(bottom = 24.dp, top = 12.dp, start = 8.dp, end = 8.dp)) {
                     Surface(
-                        shape = CircleShape,
+                        shape = RoundedCornerShape(32.dp),
                         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
                         tonalElevation = 8.dp,
                         shadowElevation = 4.dp,

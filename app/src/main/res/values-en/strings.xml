@@ -91,4 +91,16 @@
     <string name="restore_failed">Restore failed: %s</string>
     <string name="unknown_error">Unknown error</string>
     <string name="select_date">Select Date</string>
+    <string name="timeline_page_title">Timeline</string>
+    <string name="timeline_subtitle">Every moment in the river of time deserves to be remembered</string>
+    <string name="timeline_empty_hint">Leave your mark here</string>
+    <string name="timeline_now">Now</string>
+    <string name="timeline_scale_mode">Timeline Scale Style</string>
+    <string name="timeline_scale_unified">Unified Scale</string>
+    <string name="timeline_scale_dual">Dual Scale (Past/Future independent)</string>
+    <string name="now_node_style">Now Node Style</string>
+    <string name="now_style_rays">Rotating Rays</string>
+    <string name="now_style_dots">Oscillating Dots</string>
+    <string name="timeline_settings">Timeline Settings</string>
+    <string name="timeline_settings_subtitle">Scale: %1$s · Node: %2$s</string>
 </resources>

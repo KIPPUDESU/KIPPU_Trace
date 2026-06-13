@@ -91,4 +91,16 @@
     <string name="restore_failed">恢复失败: %s</string>
     <string name="unknown_error">未知错误</string>
     <string name="select_date">选择日期</string>
+    <string name="timeline_page_title">时间轴</string>
+    <string name="timeline_subtitle">在时光的长河中，每一个瞬间都值得铭记</string>
+    <string name="timeline_empty_hint">在这里\n留下你的印记</string>
+    <string name="timeline_now">现在</string>
+    <string name="timeline_scale_mode">时间轴刻度样式</string>
+    <string name="timeline_scale_unified">统一比例尺</string>
+    <string name="timeline_scale_dual">双比例尺（过去/未来独立）</string>
+    <string name="now_node_style">现在节点样式</string>
+    <string name="now_style_rays">旋转射线</string>
+    <string name="now_style_dots">简谐光点</string>
+    <string name="timeline_settings">时间线设置</string>
+    <string name="timeline_settings_subtitle">刻度：%1$s · 节点：%2$s</string>
 </resources>

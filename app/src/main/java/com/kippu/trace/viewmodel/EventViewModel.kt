@@ -8,18 +8,26 @@ import androidx.lifecycle.viewModelScope
 import com.kippu.trace.data.AppDatabase
 import com.kippu.trace.data.EventRepository
 import com.kippu.trace.model.DateEvent
+import com.kippu.trace.model.TimelineData
+import com.kippu.trace.model.TimelineItemInfo
 import com.kippu.trace.utils.BackupManager
+import com.kippu.trace.utils.TimeUtils
 import com.kippu.trace.widget.TraceWidgetUpdater
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.LocalDate
+import java.time.ZoneId
+import kotlin.math.absoluteValue
 
 class EventViewModel(application: Application) : AndroidViewModel(application) {
     private val repository: EventRepository
     val allEvents: StateFlow<List<DateEvent>>
+    val timelineData: StateFlow<TimelineData>
 
     init {
         val eventDao = AppDatabase.getDatabase(application).eventDao()
@@ -28,6 +36,11 @@ class EventViewModel(application: Application) : AndroidViewModel(application) {
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList(),
+        )
+        timelineData = allEvents.map { events -> buildTimelineData(events) }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = TimelineData(emptyList(), emptyList(), 0),
         )
     }
 
@@ -89,4 +102,34 @@ class EventViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
+}
+
+/**
+ * 预计算时间线结构数据，在后台线程（Flow map）执行。
+ * 排序 O(N log N) + 遍历 O(N)，对事件数量不敏感。
+ */
+private fun buildTimelineData(events: List<DateEvent>): TimelineData {
+    val sortedEvents = events.sortedBy { it.targetDate }
+    val todayEpochDay = LocalDate.now(ZoneId.systemDefault()).toEpochDay()
+
+    val items = mutableListOf<TimelineItemInfo>()
+    var eventCount = 0
+    for (event in sortedEvents) {
+        val epochDay = TimeUtils.toEpochDay(event.targetDate)
+        items.add(TimelineItemInfo(epochDay, isNow = false, event = event, isLeft = eventCount++ % 2 == 0))
+    }
+    // 插入「现在」节点
+    val nowIsLeft = eventCount % 2 == 0
+    items.add(TimelineItemInfo(todayEpochDay, isNow = true, event = null, isLeft = nowIsLeft))
+
+    // 按 epochDay 排序，now 节点同级排在最后
+    items.sortWith(compareBy<TimelineItemInfo> { it.epochDay }
+        .thenBy { if (it.isNow) 1 else 0 })
+
+    val dayGaps = items.zipWithNext { a, b ->
+        (b.epochDay - a.epochDay).absoluteValue.toFloat()
+    }
+    val nowItemIndex = items.indexOfFirst { it.isNow }
+
+    return TimelineData(items, dayGaps, nowItemIndex)
 }
