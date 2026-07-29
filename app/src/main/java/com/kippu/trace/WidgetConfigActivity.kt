@@ -19,6 +19,7 @@ import com.kippu.trace.ui.theme.KIPPU_TraceTheme
 import com.kippu.trace.utils.LanguageMode
 import com.kippu.trace.utils.LanguagePreferences
 import com.kippu.trace.viewmodel.EventViewModel
+import com.kippu.trace.widget.TraceWidgetSize
 import com.kippu.trace.widget.TraceWidgetUpdater
 import java.util.Locale
 
@@ -56,35 +57,40 @@ class WidgetConfigActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 获取要配置的小组件 ID
         val appWidgetId = intent?.extras?.getInt(
             AppWidgetManager.EXTRA_APPWIDGET_ID,
             AppWidgetManager.INVALID_APPWIDGET_ID
         ) ?: AppWidgetManager.INVALID_APPWIDGET_ID
 
-        // 如果 ID 无效，直接退出
         if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) {
             finish()
             return
         }
 
-        // 默认设置为取消
         setResult(RESULT_CANCELED)
+
+        val widgetSize = TraceWidgetSize.resolve(this, appWidgetId) ?: TraceWidgetSize.TWO_BY_TWO
+        val initialTransform = TraceWidgetUpdater.getWidgetImageTransform(this, appWidgetId)
 
         setContent {
             val eventViewModel: EventViewModel = viewModel()
             val events by eventViewModel.allEvents.collectAsState()
-            
+
             KIPPU_TraceTheme {
                 Box(modifier = Modifier.fillMaxSize()) {
-                    WidgetSelectionOverlay(
+                    WidgetBindingOverlay(
                         events = events,
-                        onEventSelected = { event ->
-                            // 保存绑定关系并刷新
-                            TraceWidgetUpdater.saveWidgetEventId(this@WidgetConfigActivity, appWidgetId, event.id)
+                        widgetSize = widgetSize,
+                        initialTransform = initialTransform,
+                        onConfirm = { event, imageTransform ->
+                            TraceWidgetUpdater.saveWidgetBinding(
+                                this@WidgetConfigActivity,
+                                appWidgetId,
+                                event.id,
+                                imageTransform,
+                            )
                             TraceWidgetUpdater.requestAllUpdate(this@WidgetConfigActivity)
 
-                            // 返回成功结果并关闭
                             val resultValue = Intent().apply {
                                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                             }
@@ -93,7 +99,7 @@ class WidgetConfigActivity : ComponentActivity() {
                         },
                         onDismiss = {
                             finish()
-                        }
+                        },
                     )
                 }
             }

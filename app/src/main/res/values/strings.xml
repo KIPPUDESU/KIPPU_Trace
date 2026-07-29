@@ -78,6 +78,10 @@
     <string name="widget_select_title">选择要显示的卡片</string>
     <string name="widget_no_cards">暂无卡片</string>
     <string name="widget_configure_label">更换卡片</string>
+    <string name="widget_image_range_title">调整展示范围</string>
+    <string name="widget_image_range_hint">拖动图片调整小组件上的背景展示位置</string>
+    <string name="widget_image_range_reset">重置</string>
+    <string name="widget_image_range_confirm">完成</string>
     <string name="pinned_label">置顶</string>
     <string name="time_separator"> </string>
     <string name="time_years">%d年</string>

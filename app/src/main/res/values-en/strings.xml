@@ -78,6 +78,10 @@
     <string name="widget_select_title">Select card to display</string>
     <string name="widget_no_cards">No cards available</string>
     <string name="widget_configure_label">Change Card</string>
+    <string name="widget_image_range_title">Adjust display area</string>
+    <string name="widget_image_range_hint">Drag the image to adjust its position on the widget</string>
+    <string name="widget_image_range_reset">Reset</string>
+    <string name="widget_image_range_confirm">Done</string>
     <string name="pinned_label">Pinned</string>
     <string name="time_separator"> </string>
     <string name="time_years">%d yr</string>

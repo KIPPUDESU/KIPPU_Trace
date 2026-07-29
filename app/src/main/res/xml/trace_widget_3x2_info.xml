@@ -9,4 +9,5 @@
     android:configure="com.kippu.trace.WidgetConfigActivity"
     android:widgetFeatures="reconfigurable|configuration_optional"
     android:updatePeriodMillis="0"
+    android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen" />

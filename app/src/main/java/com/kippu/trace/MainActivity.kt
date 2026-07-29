@@ -14,6 +14,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
@@ -35,11 +36,17 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -62,8 +69,11 @@ import com.kippu.trace.utils.LanguagePreferences
 import com.kippu.trace.utils.ThemeMode
 import com.kippu.trace.utils.ThemePreferences
 import com.kippu.trace.viewmodel.EventViewModel
-import com.kippu.trace.widget.TraceWidgetUpdater
+import com.kippu.trace.widget.TraceWidgetSize
+import com.kippu.trace.widget.WidgetImageCrop
+import com.kippu.trace.widget.WidgetImageTransform
 import java.time.Instant
+import kotlin.math.roundToInt
 import java.time.ZoneId
 import java.util.Locale
 import kotlinx.coroutines.launch
@@ -289,6 +299,250 @@ fun WidgetSelectionItem(event: DateEvent, onClick: () -> Unit) {
                     color = Color.White.copy(alpha = 0.6f),
                     fontSize = 12.sp
                 )
+            }
+        }
+    }
+}
+
+private enum class WidgetBindingStep {
+    SELECT,
+    ADJUST_IMAGE,
+}
+
+// 小组件绑定流程：选择事件后可调整图片展示范围
+@Composable
+fun WidgetBindingOverlay(
+    events: List<DateEvent>,
+    widgetSize: TraceWidgetSize,
+    initialTransform: WidgetImageTransform = WidgetImageTransform(),
+    onConfirm: (DateEvent, WidgetImageTransform) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var step by remember { mutableStateOf(WidgetBindingStep.SELECT) }
+    var selectedEvent by remember { mutableStateOf<DateEvent?>(null) }
+    var imageTransform by remember { mutableStateOf(initialTransform) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.6f))
+            .clickable(onClick = onDismiss),
+        contentAlignment = Alignment.Center,
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth(0.9f)
+                .fillMaxHeight(if (step == WidgetBindingStep.ADJUST_IMAGE) 0.82f else 0.7f)
+                .clickable(enabled = false) { },
+            shape = RoundedCornerShape(28.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        ) {
+            when (step) {
+                WidgetBindingStep.SELECT -> WidgetSelectionContent(
+                    events = events,
+                    onEventSelected = { event ->
+                        if (event.backgroundUri.isNullOrBlank()) {
+                            onConfirm(event, WidgetImageTransform())
+                        } else {
+                            selectedEvent = event
+                            imageTransform = initialTransform
+                            step = WidgetBindingStep.ADJUST_IMAGE
+                        }
+                    },
+                )
+
+                WidgetBindingStep.ADJUST_IMAGE -> {
+                    val event = selectedEvent
+                    if (event == null) {
+                        step = WidgetBindingStep.SELECT
+                    } else {
+                        WidgetImageRangePanel(
+                            event = event,
+                            widgetSize = widgetSize,
+                            transform = imageTransform,
+                            onTransformChange = { imageTransform = it },
+                            onReset = { imageTransform = WidgetImageTransform() },
+                            onBack = { step = WidgetBindingStep.SELECT },
+                            onConfirm = { onConfirm(event, imageTransform.clamped()) },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WidgetSelectionContent(
+    events: List<DateEvent>,
+    onEventSelected: (DateEvent) -> Unit,
+) {
+    Column(modifier = Modifier.padding(20.dp)) {
+        Text(
+            text = stringResource(R.string.widget_select_title),
+            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+            modifier = Modifier.padding(bottom = 16.dp, start = 4.dp),
+        )
+
+        if (events.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = Icons.Default.SentimentVeryDissatisfied,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(64.dp)
+                            .padding(bottom = 16.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
+                    )
+                    Text(
+                        text = stringResource(R.string.widget_no_cards),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    )
+                }
+            }
+        } else {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(bottom = 8.dp),
+            ) {
+                items(events) { event ->
+                    WidgetSelectionItem(event = event, onClick = { onEventSelected(event) })
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WidgetImageRangePanel(
+    event: DateEvent,
+    widgetSize: TraceWidgetSize,
+    transform: WidgetImageTransform,
+    onTransformChange: (WidgetImageTransform) -> Unit,
+    onReset: () -> Unit,
+    onBack: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    var imageSize by remember(event.backgroundUri) { mutableStateOf(IntSize.Zero) }
+    val maskOpacity = event.maskOpacity.coerceIn(0.25f, 0.65f)
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(20.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.widget_image_range_title),
+            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+        )
+        Text(
+            text = stringResource(R.string.widget_image_range_hint),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 8.dp, bottom = 16.dp),
+        )
+
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(widgetSize.aspectRatio)
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color.Black)
+                .pointerInput(imageSize, transform) {
+                    detectDragGestures { change, dragAmount ->
+                        change.consume()
+                        if (imageSize.width <= 0 || imageSize.height <= 0) return@detectDragGestures
+
+                        val boundsW = size.width.toFloat()
+                        val boundsH = size.height.toFloat()
+                        val drawRect = WidgetImageCrop.computeDrawRect(
+                            imageWidth = imageSize.width,
+                            imageHeight = imageSize.height,
+                            boundsWidth = boundsW,
+                            boundsHeight = boundsH,
+                            transform = transform,
+                        )
+                        val maxPanX = (drawRect.width() - boundsW).coerceAtLeast(1f)
+                        val maxPanY = (drawRect.height() - boundsH).coerceAtLeast(1f)
+
+                        onTransformChange(
+                            transform.copy(
+                                offsetX = (transform.offsetX - dragAmount.x / maxPanX * 2f).coerceIn(-1f, 1f),
+                                offsetY = (transform.offsetY - dragAmount.y / maxPanY * 2f).coerceIn(-1f, 1f),
+                            ),
+                        )
+                    }
+                },
+        ) {
+            val boundsW = constraints.maxWidth.toFloat()
+            val boundsH = constraints.maxHeight.toFloat()
+            val density = LocalDensity.current
+
+            if (!event.backgroundUri.isNullOrBlank()) {
+                AsyncImage(
+                    model = event.backgroundUri,
+                    contentDescription = null,
+                    contentScale = ContentScale.None,
+                    onSuccess = { state ->
+                        val width = state.painter.intrinsicSize.width.roundToInt()
+                        val height = state.painter.intrinsicSize.height.roundToInt()
+                        if (width > 0 && height > 0) {
+                            imageSize = IntSize(width, height)
+                        }
+                    },
+                    modifier = if (imageSize == IntSize.Zero) {
+                        Modifier.fillMaxSize()
+                    } else {
+                        val drawRect = WidgetImageCrop.computeDrawRect(
+                            imageWidth = imageSize.width,
+                            imageHeight = imageSize.height,
+                            boundsWidth = boundsW,
+                            boundsHeight = boundsH,
+                            transform = transform,
+                        )
+                        Modifier
+                            .offset {
+                                IntOffset(drawRect.left.roundToInt(), drawRect.top.roundToInt())
+                            }
+                            .size(
+                                width = with(density) { drawRect.width().toDp() },
+                                height = with(density) { drawRect.height().toDp() },
+                            )
+                    },
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                Color.Black.copy(alpha = maskOpacity),
+                            ),
+                        ),
+                    ),
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(onClick = onBack) {
+                Text(text = stringResource(R.string.cancel))
+            }
+            TextButton(onClick = onReset) {
+                Text(text = stringResource(R.string.widget_image_range_reset))
+            }
+            Button(onClick = onConfirm) {
+                Text(text = stringResource(R.string.widget_image_range_confirm))
             }
         }
     }

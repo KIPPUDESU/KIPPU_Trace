@@ -32,15 +32,29 @@ import androidx.core.content.edit
 object TraceWidgetUpdater {
     private const val PREFS_NAME = "trace_widget_prefs"
     private const val PREF_PREFIX_KEY = "appwidget_"
+    private const val PREF_OFFSET_X_SUFFIX = "_ox"
+    private const val PREF_OFFSET_Y_SUFFIX = "_oy"
     private val updateScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 
-    // 保存小组件绑定的事件ID
-    fun saveWidgetEventId(context: Context, appWidgetId: Int, eventId: Long) {
+    // 保存小组件绑定的事件与图片范围
+    fun saveWidgetBinding(
+        context: Context,
+        appWidgetId: Int,
+        eventId: Long,
+        imageTransform: WidgetImageTransform = WidgetImageTransform(),
+    ) {
+        val clamped = imageTransform.clamped()
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit {
                 putLong(PREF_PREFIX_KEY + appWidgetId, eventId)
+                putFloat(PREF_PREFIX_KEY + appWidgetId + PREF_OFFSET_X_SUFFIX, clamped.offsetX)
+                putFloat(PREF_PREFIX_KEY + appWidgetId + PREF_OFFSET_Y_SUFFIX, clamped.offsetY)
             }
+    }
+
+    fun saveWidgetEventId(context: Context, appWidgetId: Int, eventId: Long) {
+        saveWidgetBinding(context, appWidgetId, eventId, getWidgetImageTransform(context, appWidgetId))
     }
 
     // 获取小组件绑定的事件ID
@@ -49,11 +63,21 @@ object TraceWidgetUpdater {
             .getLong(PREF_PREFIX_KEY + appWidgetId, -1L)
     }
 
+    fun getWidgetImageTransform(context: Context, appWidgetId: Int): WidgetImageTransform {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return WidgetImageTransform(
+            offsetX = prefs.getFloat(PREF_PREFIX_KEY + appWidgetId + PREF_OFFSET_X_SUFFIX, 0f),
+            offsetY = prefs.getFloat(PREF_PREFIX_KEY + appWidgetId + PREF_OFFSET_Y_SUFFIX, 0f),
+        ).clamped()
+    }
+
     // 移除小组件绑定关系
     fun removeWidgetPreference(context: Context, appWidgetId: Int) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit {
                 remove(PREF_PREFIX_KEY + appWidgetId)
+                remove(PREF_PREFIX_KEY + appWidgetId + PREF_OFFSET_X_SUFFIX)
+                remove(PREF_PREFIX_KEY + appWidgetId + PREF_OFFSET_Y_SUFFIX)
             }
     }
 
@@ -106,7 +130,9 @@ object TraceWidgetUpdater {
 
             val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
             val widthPx = dpToPx(context, options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 0))
+                .takeIf { it > 0 } ?: widgetSize.backgroundWidthPx
             val heightPx = dpToPx(context, options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0))
+                .takeIf { it > 0 } ?: widgetSize.backgroundHeightPx
 
             appWidgetManager.updateAppWidget(
                 appWidgetId,
@@ -131,33 +157,39 @@ object TraceWidgetUpdater {
     }
 
     // 构建远程视图并填充数据
-    private fun buildRemoteViews(context: Context, widgetSize: TraceWidgetSize, event: DateEvent?, appWidgetId: Int, widthPx: Int, heightPx: Int): RemoteViews {
+    private fun buildRemoteViews(
+        context: Context,
+        widgetSize: TraceWidgetSize,
+        event: DateEvent?,
+        appWidgetId: Int,
+        widthPx: Int,
+        heightPx: Int,
+    ): RemoteViews {
         val views = RemoteViews(context.packageName, widgetSize.layoutRes)
-        
-        // 检测系统是否处于暗色模式
-        val isDark = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
 
-        // 渲染背景如果是空事件则渲染加号
+        val isDark = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        val imageTransform = if (event == null) {
+            WidgetImageTransform()
+        } else {
+            getWidgetImageTransform(context, appWidgetId)
+        }
+
         views.setImageViewBitmap(
             R.id.widget_background,
-            TraceWidgetBackgroundRenderer.render(event, widthPx, heightPx, isDark),
+            TraceWidgetBackgroundRenderer.render(event, widthPx, heightPx, isDark, imageTransform),
         )
 
-        // 强制隐藏左上角标识（置顶/应用名）
         views.setViewVisibility(R.id.widget_label, View.GONE)
 
         if (event == null) {
-            // 空状态隐藏所有文字内容
             views.setViewVisibility(R.id.widget_title, View.GONE)
             views.setViewVisibility(R.id.widget_prefix, View.GONE)
             views.setViewVisibility(R.id.widget_date, View.GONE)
             views.setViewVisibility(R.id.widget_days, View.GONE)
             views.setViewVisibility(R.id.widget_day_unit, View.GONE)
-            
-            // 点击打开选择界面
+
             views.setOnClickPendingIntent(R.id.widget_root, createConfigIntent(context, appWidgetId))
         } else {
-            // 有效状态显示并填充数据
             views.setViewVisibility(R.id.widget_title, View.VISIBLE)
             views.setViewVisibility(R.id.widget_days, View.VISIBLE)
             views.setViewVisibility(R.id.widget_day_unit, View.VISIBLE)
@@ -172,15 +204,14 @@ object TraceWidgetUpdater {
             views.setTextViewText(R.id.widget_date, dateText)
             views.setTextViewText(R.id.widget_days, days)
             views.setTextViewText(R.id.widget_day_unit, localizedCtx.getString(R.string.day_unit))
-            
+
             views.setViewVisibility(R.id.widget_prefix, View.VISIBLE)
             views.setViewVisibility(R.id.widget_date, View.VISIBLE)
-            
+
             applySizeTuning(views, widgetSize, event.title, days.toLong())
-            // 点击有内容的小组件直接打开对应卡片详情页
             views.setOnClickPendingIntent(R.id.widget_root, createOpenAppIntent(context, event.id))
         }
-        
+
         return views
     }
 
@@ -200,7 +231,6 @@ object TraceWidgetUpdater {
                 views.setTextViewTextSize(R.id.widget_prefix, TypedValue.COMPLEX_UNIT_SP, prefixSize)
                 views.setTextViewTextSize(R.id.widget_days, TypedValue.COMPLEX_UNIT_SP, daysSize)
                 views.setTextViewTextSize(R.id.widget_day_unit, TypedValue.COMPLEX_UNIT_SP, unitSize)
-                // 2x2 空间有限，不显示年月日
                 views.setViewVisibility(R.id.widget_date, View.GONE)
             }
             TraceWidgetSize.THREE_BY_TWO -> {

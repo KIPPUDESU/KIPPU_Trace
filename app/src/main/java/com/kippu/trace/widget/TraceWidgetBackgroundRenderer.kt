@@ -18,7 +18,13 @@ object TraceWidgetBackgroundRenderer {
     private const val CORNER_RADIUS_FRACTION = 0.075f
 
     // 渲染位图入口
-    fun render(event: DateEvent?, width: Int, height: Int, isDarkTheme: Boolean): Bitmap {
+    fun render(
+        event: DateEvent?,
+        width: Int,
+        height: Int,
+        isDarkTheme: Boolean,
+        imageTransform: WidgetImageTransform = WidgetImageTransform(),
+    ): Bitmap {
         val output = createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(output)
         val bounds = RectF(0f, 0f, width.toFloat(), height.toFloat())
@@ -66,7 +72,7 @@ object TraceWidgetBackgroundRenderer {
                 }
                 
                 if (background != null) {
-                    drawCenterCrop(this, background, bounds)
+                    drawCroppedImage(this, background, bounds, imageTransform)
                     background.recycle()
                 }
 
@@ -115,13 +121,21 @@ object TraceWidgetBackgroundRenderer {
         return inSampleSize
     }
 
-    private fun drawCenterCrop(canvas: Canvas, bitmap: Bitmap, bounds: RectF) {
-        val scale = max(bounds.width() / bitmap.width, bounds.height() / bitmap.height)
-        val scaledWidth = bitmap.width * scale
-        val scaledHeight = bitmap.height * scale
-        val left = bounds.left + (bounds.width() - scaledWidth) / 2f
-        val top = bounds.top + (bounds.height() - scaledHeight) / 2f
-        val target = RectF(left, top, left + scaledWidth, top + scaledHeight)
+    private fun drawCroppedImage(
+        canvas: Canvas,
+        bitmap: Bitmap,
+        bounds: RectF,
+        transform: WidgetImageTransform,
+    ) {
+        val target = WidgetImageCrop.computeDrawRect(
+            imageWidth = bitmap.width,
+            imageHeight = bitmap.height,
+            boundsWidth = bounds.width(),
+            boundsHeight = bounds.height(),
+            transform = transform,
+        ).apply {
+            offset(bounds.left, bounds.top)
+        }
 
         val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
         canvas.drawBitmap(bitmap, null, target, paint)
