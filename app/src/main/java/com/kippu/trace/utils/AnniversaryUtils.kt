@@ -111,11 +111,9 @@ object AnniversaryUtils {
             results.add(AnniversaryResult(type = AnniversaryType.YEAR, count = yearsDiff))
         }
 
-        // 月纪念日：同日但不同月（且不是年纪念日的同一天）
-        val isYearDay = today.month == targetDate.month && today.dayOfMonth == targetDate.dayOfMonth
+        // 月纪念日：每个完整月的同一天，周年当天也同时触发
         if (monthEnabled &&
-            today.dayOfMonth == targetDate.dayOfMonth &&
-            !isYearDay
+            today.dayOfMonth == targetDate.dayOfMonth
         ) {
             // 计算自目标日期以来的累计月数
             val monthsDiff = (yearsDiff * 12L +

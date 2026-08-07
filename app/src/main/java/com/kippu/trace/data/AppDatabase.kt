@@ -2,6 +2,8 @@ package com.kippu.trace.data
 
 import android.content.Context
 import androidx.room.*
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.kippu.trace.model.DateEvent
 import kotlinx.coroutines.flow.Flow
 
@@ -47,6 +49,32 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE `date_events` ADD COLUMN `repeatMode` TEXT NOT NULL DEFAULT 'NONE'"
+                )
+                db.execSQL(
+                    "ALTER TABLE `date_events` ADD COLUMN `repeatCustomDays` INTEGER NOT NULL DEFAULT 0"
+                )
+                db.execSQL(
+                    "ALTER TABLE `date_events` ADD COLUMN `customAnniversaryDays` INTEGER NOT NULL DEFAULT 0"
+                )
+                db.execSQL(
+                    "ALTER TABLE `date_events` ADD COLUMN `anniversaryYearEnabled` INTEGER NOT NULL DEFAULT 0"
+                )
+                db.execSQL(
+                    "ALTER TABLE `date_events` ADD COLUMN `anniversaryMonthEnabled` INTEGER NOT NULL DEFAULT 0"
+                )
+                db.execSQL(
+                    "ALTER TABLE `date_events` ADD COLUMN `anniversaryWeekEnabled` INTEGER NOT NULL DEFAULT 0"
+                )
+                db.execSQL(
+                    "ALTER TABLE `date_events` ADD COLUMN `anniversaryCombinedText` TEXT NOT NULL DEFAULT ''"
+                )
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -54,7 +82,8 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "trace_database",
                 )
-                .fallbackToDestructiveMigration()
+                .addMigrations(MIGRATION_2_3)
+                .fallbackToDestructiveMigrationFrom(1)
                 .build()
                 INSTANCE = instance
                 instance
