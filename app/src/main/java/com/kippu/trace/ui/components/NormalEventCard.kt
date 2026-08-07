@@ -47,7 +47,11 @@ fun NormalEventCard(
 
     // 纪念日检查（仅累计模式）
     val anniversary = AnniversaryUtils.checkAllAnniversaries(event)
-    val subtitleText = if (anniversary.isTriggered) anniversary.displayText() else "$prefix $timeDescription"
+    val subtitleText = if (anniversary.isTriggered) {
+        anniversary.displayText(context.resources)
+    } else {
+        "$prefix $timeDescription"
+    }
     val subtitleColor = if (anniversary.isTriggered) AnniversaryGold else MaterialTheme.colorScheme.secondary
 
     val visualWidth = TextUtils.getVisualWidth(event.title)

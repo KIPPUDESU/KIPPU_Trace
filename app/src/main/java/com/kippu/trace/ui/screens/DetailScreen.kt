@@ -718,7 +718,7 @@ fun EventDetailItem(
 
             if (anniversary.isTriggered) {
                 // 纪念日大字展示
-                val anniversaryText = anniversary.displayText()
+                val anniversaryText = anniversary.displayText(context.resources)
                 val anniversaryFontSize = when {
                     anniversaryText.length >= 12 -> 28.sp
                     anniversaryText.length >= 8 -> 36.sp

@@ -1,5 +1,7 @@
 package com.kippu.trace.utils
 
+import android.content.res.Resources
+import com.kippu.trace.R
 import com.kippu.trace.model.DateEvent
 import com.kippu.trace.model.RepeatMode
 import java.time.Instant
@@ -35,24 +37,27 @@ data class AnniversaryTrigger(
 ) {
     val isTriggered: Boolean get() = results.isNotEmpty()
 
-    /** 默认拼接文案 */
-    fun defaultText(): String {
+    private fun defaultText(resources: Resources): String {
         if (results.isEmpty()) return ""
         return results.joinToString(" · ") { r ->
             when (r.type) {
-                AnniversaryType.CUSTOM -> "${r.count}×${r.baseDays}天"
-                AnniversaryType.YEAR -> "满${r.count}年"
-                AnniversaryType.MONTH -> "满${r.count}月"
-                AnniversaryType.WEEK -> "满${r.count}周"
+                AnniversaryType.CUSTOM -> resources.getString(
+                    R.string.anniversary_custom_text,
+                    r.count,
+                    r.baseDays,
+                )
+                AnniversaryType.YEAR -> resources.getString(R.string.anniversary_year_text, r.count)
+                AnniversaryType.MONTH -> resources.getString(R.string.anniversary_month_text, r.count)
+                AnniversaryType.WEEK -> resources.getString(R.string.anniversary_week_text, r.count)
             }
         }
     }
 
     /** 最终展示文案：用户自定义优先，否则用默认 */
-    fun displayText(): String {
+    fun displayText(resources: Resources): String {
         val custom = combinedText
         if (!custom.isNullOrBlank()) return custom
-        return defaultText()
+        return defaultText(resources)
     }
 }
 

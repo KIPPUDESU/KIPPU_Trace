@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineBreak
@@ -53,6 +54,11 @@ fun PinnedEventCard(
     val days = ChronoUnit.DAYS.between(today, targetLocalDate).let { if (it < 0) -it else it }
 
     val anniversary = AnniversaryUtils.checkAllAnniversaries(event)
+    val anniversaryText = if (anniversary.isTriggered) {
+        anniversary.displayText(LocalContext.current.resources)
+    } else {
+        null
+    }
 
     Card(
         onClick = onClick,
@@ -153,7 +159,7 @@ fun PinnedEventCard(
                                 )
                             }
                             Text(
-                                text = if (anniversary.isTriggered) anniversary.displayText() else targetLocalDate.toString(),
+                                text = anniversaryText ?: targetLocalDate.toString(),
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     color = if (anniversary.isTriggered) AnniversaryGoldOnDark else Color.White.copy(alpha = 0.7f),
                                     fontWeight = if (anniversary.isTriggered) FontWeight.Bold else FontWeight.Normal
@@ -208,7 +214,7 @@ fun PinnedEventCard(
                             }
 
                             Text(
-                                text = if (anniversary.isTriggered) anniversary.displayText() else targetLocalDate.toString(),
+                                text = anniversaryText ?: targetLocalDate.toString(),
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     color = if (anniversary.isTriggered) AnniversaryGoldOnDark else Color.White.copy(alpha = 0.7f),
                                     fontWeight = if (anniversary.isTriggered) FontWeight.Bold else FontWeight.Normal
@@ -240,7 +246,7 @@ fun PinnedEventCard(
                                     )
                                 )
                                 Text(
-                                    text = if (anniversary.isTriggered) anniversary.displayText() else targetLocalDate.toString(),
+                                    text = anniversaryText ?: targetLocalDate.toString(),
                                     style = MaterialTheme.typography.labelMedium.copy(
                                         color = if (anniversary.isTriggered) AnniversaryGoldOnDark else Color.White.copy(alpha = 0.8f),
                                         fontWeight = if (anniversary.isTriggered) FontWeight.Bold else FontWeight.Normal

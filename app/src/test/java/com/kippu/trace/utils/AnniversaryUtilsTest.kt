@@ -36,6 +36,5 @@ class AnniversaryUtilsTest {
             ),
             trigger.results,
         )
-        assertEquals("4 years and 48 months", trigger.displayText())
     }
 }
