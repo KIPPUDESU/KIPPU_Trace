@@ -58,6 +58,9 @@ abstract class AppDatabase : RoomDatabase() {
                     "ALTER TABLE `date_events` ADD COLUMN `repeatCustomDays` INTEGER NOT NULL DEFAULT 0"
                 )
                 db.execSQL(
+                    "ALTER TABLE `date_events` ADD COLUMN `repeatAnchorDate` INTEGER"
+                )
+                db.execSQL(
                     "ALTER TABLE `date_events` ADD COLUMN `customAnniversaryDays` INTEGER NOT NULL DEFAULT 0"
                 )
                 db.execSQL(

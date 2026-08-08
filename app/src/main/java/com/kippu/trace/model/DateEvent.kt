@@ -35,6 +35,8 @@ data class DateEvent(
     val repeatMode: RepeatMode = RepeatMode.NONE,
     @ColumnInfo(defaultValue = "0")
     val repeatCustomDays: Int = 0,
+    // 用户选择的原始重复日期；自动推进 targetDate 时保持不变。
+    val repeatAnchorDate: Long? = null,
     // 累计模式 - 自定义纪念日
     @ColumnInfo(defaultValue = "0")
     val customAnniversaryDays: Int = 0,       // N，0 表示不启用

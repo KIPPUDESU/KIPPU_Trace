@@ -86,6 +86,7 @@ com.kippu.trace/
 | `position` | `Int` | 排序位置 |
 | `repeatMode` | `RepeatMode` | 倒数重复模式 |
 | `repeatCustomDays` | `Int` | 自定义重复天数 |
+| `repeatAnchorDate` | `Long?` | 重复计算的原始锚点日期 |
 | `customAnniversaryDays` | `Int` | 自定义纪念日天数 |
 | `anniversaryYearEnabled` | `Boolean` | 周年纪念日开关 |
 | `anniversaryMonthEnabled` | `Boolean` | 月纪念日开关 |

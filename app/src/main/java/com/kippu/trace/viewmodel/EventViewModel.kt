@@ -46,11 +46,19 @@ class EventViewModel(application: Application) : AndroidViewModel(application) {
                 val events = withContext(Dispatchers.IO) { repository.getAllEventsOnce() }
                 val updated = events.mapNotNull { event ->
                     if (event.mode == DisplayMode.COUNT_DOWN && event.repeatMode != RepeatMode.NONE) {
+                        val repeatAnchor = event.repeatAnchorDate ?: event.targetDate
                         val newTarget = AnniversaryUtils.advanceTargetDate(
-                            event.targetDate, event.repeatMode, event.repeatCustomDays
+                            event.targetDate,
+                            repeatAnchor,
+                            event.repeatMode,
+                            event.repeatCustomDays,
                         )
                         if (newTarget != null) {
-                            event.copy(targetDate = newTarget, isFuture = true)
+                            event.copy(
+                                targetDate = newTarget,
+                                isFuture = true,
+                                repeatAnchorDate = repeatAnchor,
+                            )
                         } else null
                     } else null
                 }
@@ -66,7 +74,14 @@ class EventViewModel(application: Application) : AndroidViewModel(application) {
 
     fun addEvent(event: DateEvent) {
         viewModelScope.launch {
-            repository.insert(event)
+            val eventWithAnchor = if (
+                event.repeatMode != RepeatMode.NONE && event.repeatAnchorDate == null
+            ) {
+                event.copy(repeatAnchorDate = event.targetDate)
+            } else {
+                event
+            }
+            repository.insert(eventWithAnchor)
             TraceWidgetUpdater.requestAllUpdate(getApplication())
         }
     }

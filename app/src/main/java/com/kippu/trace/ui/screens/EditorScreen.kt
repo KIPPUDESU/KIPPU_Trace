@@ -262,6 +262,9 @@ fun EditorScreen(
                                 maskOpacity = maskOpacity,
                                 repeatMode = repeatMode,
                                 repeatCustomDays = repeatCustomDays,
+                                repeatAnchorDate = if (
+                                    mode == DisplayMode.COUNT_DOWN && repeatMode != RepeatMode.NONE
+                                ) selectedDate else null,
                                 customAnniversaryDays = customAnniversaryDays,
                                 anniversaryYearEnabled = anniversaryYearEnabled,
                                 anniversaryMonthEnabled = anniversaryMonthEnabled,

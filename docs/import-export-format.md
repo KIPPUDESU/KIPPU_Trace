@@ -34,6 +34,7 @@ backup.zip
     "backgroundFile": "abc123.jpg",
     "repeatMode": "YEARLY",
     "repeatCustomDays": 0,
+    "repeatAnchorDate": 1735689600000,
     "anniversaryYearEnabled": false,
     "anniversaryMonthEnabled": false,
     "anniversaryWeekEnabled": false,
@@ -73,6 +74,7 @@ backup.zip
 | `backgroundFile`          | `string`  | ❌     | -        | 背景图片文件名（不含路径）。对应的图片文件需放在 `backgrounds/` 目录下                     |
 | `repeatMode`              | `string`  | ❌     | `"NONE"` | 倒数模式自动重置规则，取值见下方枚举                                              |
 | `repeatCustomDays`        | `integer` | ❌     | `0`      | 自定义重置天数（仅 `repeatMode` 为 `CUSTOM_DAYS` 时有效）                     |
+| `repeatAnchorDate`        | `integer` | ❌     | `targetDate` | 重复计算的原始锚点日期，毫秒级 Unix 时间戳；旧备份缺失时使用 `targetDate`              |
 | `customAnniversaryDays`   | `integer` | ❌     | `0`      | 自定义纪念日间隔天数（`0` 表示不启用）                                           |
 | `anniversaryYearEnabled`  | `boolean` | ❌     | `false`  | 是否启用年纪念日                                                        |
 | `anniversaryMonthEnabled` | `boolean` | ❌     | `false`  | 是否启用月纪念日                                                        |
@@ -175,6 +177,10 @@ backup.zip
           "type": "integer",
           "description": "自定义重置天数",
           "default": 0
+        },
+        "repeatAnchorDate": {
+          "type": "integer",
+          "description": "重复计算的原始锚点日期，毫秒级 Unix 时间戳；缺失时使用 targetDate"
         },
         "customAnniversaryDays": {
           "type": "integer",

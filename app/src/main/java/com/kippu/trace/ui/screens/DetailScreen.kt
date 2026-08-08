@@ -56,6 +56,7 @@ import coil.compose.AsyncImage
 import com.kippu.trace.R
 import com.kippu.trace.model.DateEvent
 import com.kippu.trace.model.DisplayMode
+import com.kippu.trace.model.RepeatMode
 import com.kippu.trace.ui.components.AnniversaryConfigSection
 import com.kippu.trace.ui.theme.AnniversaryGoldOnDark
 import com.kippu.trace.utils.AnniversaryUtils
@@ -494,6 +495,9 @@ fun DetailScreen(
                                             targetDate = selectedMillis,
                                             isFuture = isFuture,
                                             mode = if (isFuture) DisplayMode.COUNT_DOWN else DisplayMode.ACCUMULATE,
+                                            repeatAnchorDate = if (
+                                                pendingDateEvent?.repeatMode != RepeatMode.NONE
+                                            ) selectedMillis else null,
                                         )
                                     }
                                     datePickerStep = 1
@@ -528,7 +532,16 @@ fun DetailScreen(
                                 AnniversaryConfigSection(
                                     mode = pendingEvent.mode,
                                     repeatMode = pendingEvent.repeatMode,
-                                    onRepeatModeChange = { pendingDateEvent = pendingEvent.copy(repeatMode = it) },
+                                    onRepeatModeChange = { repeatMode ->
+                                        pendingDateEvent = pendingEvent.copy(
+                                            repeatMode = repeatMode,
+                                            repeatAnchorDate = if (repeatMode == RepeatMode.NONE) {
+                                                null
+                                            } else {
+                                                pendingEvent.repeatAnchorDate ?: pendingEvent.targetDate
+                                            },
+                                        )
+                                    },
                                     repeatCustomDays = pendingEvent.repeatCustomDays,
                                     onRepeatCustomDaysChange = { pendingDateEvent = pendingEvent.copy(repeatCustomDays = it) },
                                     customAnniversaryDays = pendingEvent.customAnniversaryDays,

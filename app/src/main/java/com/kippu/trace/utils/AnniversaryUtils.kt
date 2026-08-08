@@ -7,6 +7,7 @@ import com.kippu.trace.model.DisplayMode
 import com.kippu.trace.model.RepeatMode
 import java.time.Instant
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 
@@ -204,6 +205,7 @@ object AnniversaryUtils {
      */
     fun advanceTargetDate(
         currentTargetMillis: Long,
+        repeatAnchorMillis: Long,
         repeatMode: RepeatMode,
         customDays: Int
     ): Long? {
@@ -215,33 +217,39 @@ object AnniversaryUtils {
         val targetDate = Instant.ofEpochMilli(currentTargetMillis)
             .atZone(ZoneId.of("UTC"))
             .toLocalDate()
+        val anchorDate = Instant.ofEpochMilli(repeatAnchorMillis)
+            .atZone(ZoneId.of("UTC"))
+            .toLocalDate()
 
         // 目标日期还没到，无需推进
         if (!targetDate.isBefore(now)) return null
 
-        var next = targetDate
-
-        when (repeatMode) {
+        val next = when (repeatMode) {
             RepeatMode.CUSTOM_DAYS -> {
                 if (customDays <= 0) return null
-                while (!next.isAfter(now)) {
-                    next = next.plusDays(customDays.toLong())
-                }
+                nextDayBasedOccurrence(anchorDate, now, customDays.toLong())
             }
-            RepeatMode.WEEKLY -> {
-                while (!next.isAfter(now)) {
-                    next = next.plusWeeks(1)
-                }
-            }
+            RepeatMode.WEEKLY -> nextDayBasedOccurrence(anchorDate, now, 7L)
             RepeatMode.MONTHLY -> {
-                while (!next.isAfter(now)) {
-                    next = next.plusMonths(1)
+                var offset = ChronoUnit.MONTHS.between(
+                    YearMonth.from(anchorDate),
+                    YearMonth.from(now),
+                ).coerceAtLeast(0L)
+                var candidate = monthlyOccurrence(anchorDate, offset)
+                if (!candidate.isAfter(now)) {
+                    offset += 1
+                    candidate = monthlyOccurrence(anchorDate, offset)
                 }
+                candidate
             }
             RepeatMode.YEARLY -> {
-                while (!next.isAfter(now)) {
-                    next = next.plusYears(1)
+                var offset = (now.year - anchorDate.year).coerceAtLeast(0)
+                var candidate = yearlyOccurrence(anchorDate, offset)
+                if (!candidate.isAfter(now)) {
+                    offset += 1
+                    candidate = yearlyOccurrence(anchorDate, offset)
                 }
+                candidate
             }
             RepeatMode.NONE -> return null
         }
@@ -250,5 +258,26 @@ object AnniversaryUtils {
         return next.atStartOfDay(ZoneId.of("UTC"))
             .toInstant()
             .toEpochMilli()
+    }
+
+    private fun nextDayBasedOccurrence(
+        anchorDate: LocalDate,
+        now: LocalDate,
+        intervalDays: Long,
+    ): LocalDate {
+        if (anchorDate.isAfter(now)) return anchorDate
+        val elapsedDays = ChronoUnit.DAYS.between(anchorDate, now)
+        val completedIntervals = elapsedDays / intervalDays
+        return anchorDate.plusDays((completedIntervals + 1) * intervalDays)
+    }
+
+    private fun monthlyOccurrence(anchorDate: LocalDate, offset: Long): LocalDate {
+        val targetMonth = YearMonth.from(anchorDate).plusMonths(offset)
+        return targetMonth.atDay(anchorDate.dayOfMonth.coerceAtMost(targetMonth.lengthOfMonth()))
+    }
+
+    private fun yearlyOccurrence(anchorDate: LocalDate, offset: Int): LocalDate {
+        val targetMonth = YearMonth.of(anchorDate.year + offset, anchorDate.month)
+        return targetMonth.atDay(anchorDate.dayOfMonth.coerceAtMost(targetMonth.lengthOfMonth()))
     }
 }

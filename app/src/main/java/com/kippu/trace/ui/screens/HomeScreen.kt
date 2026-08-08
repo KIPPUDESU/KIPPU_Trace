@@ -51,6 +51,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.kippu.trace.R
 import com.kippu.trace.model.DateEvent
 import com.kippu.trace.model.DisplayMode
+import com.kippu.trace.model.RepeatMode
 import com.kippu.trace.utils.FileUtils
 import com.kippu.trace.utils.isRepeatConfigurationValid
 import kotlinx.coroutines.launch
@@ -287,7 +288,8 @@ fun HomeScreen(
                                             editingEvent = editingEvent?.copy(
                                                 targetDate = millis,
                                                 isFuture = millis > System.currentTimeMillis(),
-                                                mode = if (millis > System.currentTimeMillis()) DisplayMode.COUNT_DOWN else DisplayMode.ACCUMULATE
+                                                mode = if (millis > System.currentTimeMillis()) DisplayMode.COUNT_DOWN else DisplayMode.ACCUMULATE,
+                                                repeatAnchorDate = if (event.repeatMode != RepeatMode.NONE) millis else null,
                                             )
                                         }
                                         editDatePickerStep = 1
@@ -313,7 +315,18 @@ fun HomeScreen(
                             AnniversaryConfigSection(
                                 mode = event.mode,
                                 repeatMode = event.repeatMode,
-                                onRepeatModeChange = { editingEvent = editingEvent?.copy(repeatMode = it) },
+                                onRepeatModeChange = { repeatMode ->
+                                    editingEvent = editingEvent?.let { current ->
+                                        current.copy(
+                                            repeatMode = repeatMode,
+                                            repeatAnchorDate = if (repeatMode == RepeatMode.NONE) {
+                                                null
+                                            } else {
+                                                current.repeatAnchorDate ?: current.targetDate
+                                            },
+                                        )
+                                    }
+                                },
                                 repeatCustomDays = event.repeatCustomDays,
                                 onRepeatCustomDaysChange = { editingEvent = editingEvent?.copy(repeatCustomDays = it) },
                                 customAnniversaryDays = event.customAnniversaryDays,

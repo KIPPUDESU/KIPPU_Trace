@@ -130,6 +130,9 @@ object BackupManager {
             if (repeatCustomDays > 0) {
                 put("repeatCustomDays", repeatCustomDays)
             }
+            if (repeatMode != RepeatMode.NONE) {
+                put("repeatAnchorDate", repeatAnchorDate ?: targetDate)
+            }
             // 累计模式 - 纪念日
             if (customAnniversaryDays > 0) {
                 put("customAnniversaryDays", customAnniversaryDays)
@@ -144,10 +147,16 @@ object BackupManager {
     }
 
     private fun JSONObject.toDateEvent(backgroundsDir: File): DateEvent {
+        val targetDate = getLong("targetDate")
+        val repeatMode = if (has("repeatMode")) {
+            RepeatMode.valueOf(getString("repeatMode"))
+        } else {
+            RepeatMode.NONE
+        }
         return DateEvent(
             id = getLong("id"),
             title = getString("title"),
-            targetDate = getLong("targetDate"),
+            targetDate = targetDate,
             isFuture = getBoolean("isFuture"),
             isLunar = optBoolean("isLunar", false),
             mode = DisplayMode.valueOf(getString("mode")),
@@ -156,8 +165,13 @@ object BackupManager {
             } else null,
             isPinned = optBoolean("isPinned", false),
             maskOpacity = optDouble("maskOpacity", 0.3).toFloat(),
-            repeatMode = if (has("repeatMode")) RepeatMode.valueOf(getString("repeatMode")) else RepeatMode.NONE,
+            repeatMode = repeatMode,
             repeatCustomDays = optInt("repeatCustomDays", 0),
+            repeatAnchorDate = if (repeatMode != RepeatMode.NONE) {
+                optLong("repeatAnchorDate", targetDate)
+            } else {
+                null
+            },
             customAnniversaryDays = optInt("customAnniversaryDays", 0),
             anniversaryYearEnabled = optBoolean("anniversaryYearEnabled", false),
             anniversaryMonthEnabled = optBoolean("anniversaryMonthEnabled", false),
