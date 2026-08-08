@@ -108,8 +108,17 @@
     <string name="repeat_custom">Custom</string>
     <string name="repeat_custom_unit">days</string>
     <string name="anniversary_custom_text">%1$d × %2$d days today</string>
-    <string name="anniversary_year_text">%d year(s) today</string>
-    <string name="anniversary_month_text">%d month(s) today</string>
+    <plurals name="anniversary_year_text">
+        <item quantity="one">%d year today</item>
+        <item quantity="other">%d years today</item>
+    </plurals>
+    <plurals name="anniversary_month_text">
+        <item quantity="one">%d month today</item>
+        <item quantity="other">%d months today</item>
+    </plurals>
     <string name="anniversary_indicator">Anniversary</string>
-    <string name="anniversary_week_text">%d week(s) today</string>
+    <plurals name="anniversary_week_text">
+        <item quantity="one">%d week today</item>
+        <item quantity="other">%d weeks today</item>
+    </plurals>
 </resources>

@@ -108,8 +108,14 @@
     <string name="repeat_custom">カスタム</string>
     <string name="repeat_custom_unit">日</string>
     <string name="anniversary_custom_text">今日で %1$d × %2$d 日</string>
-    <string name="anniversary_year_text">今日で %d 年</string>
-    <string name="anniversary_month_text">今日で %d ヶ月</string>
+    <plurals name="anniversary_year_text">
+        <item quantity="other">今日で %d 年</item>
+    </plurals>
+    <plurals name="anniversary_month_text">
+        <item quantity="other">今日で %d ヶ月</item>
+    </plurals>
     <string name="anniversary_indicator">記念日</string>
-    <string name="anniversary_week_text">今日で %d 週間</string>
+    <plurals name="anniversary_week_text">
+        <item quantity="other">今日で %d 週間</item>
+    </plurals>
 </resources>

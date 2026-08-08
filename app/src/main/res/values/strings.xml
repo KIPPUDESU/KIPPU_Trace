@@ -108,8 +108,14 @@
     <string name="repeat_custom">自定义</string>
     <string name="repeat_custom_unit">天</string>
     <string name="anniversary_custom_text">到今天已 %1$d 个 %2$d 天</string>
-    <string name="anniversary_year_text">到今天满 %d 年</string>
-    <string name="anniversary_month_text">到今天满 %d 个月</string>
+    <plurals name="anniversary_year_text">
+        <item quantity="other">到今天满 %d 年</item>
+    </plurals>
+    <plurals name="anniversary_month_text">
+        <item quantity="other">到今天满 %d 个月</item>
+    </plurals>
     <string name="anniversary_indicator">纪念日</string>
-    <string name="anniversary_week_text">到今天满 %d 周</string>
+    <plurals name="anniversary_week_text">
+        <item quantity="other">到今天满 %d 周</item>
+    </plurals>
 </resources>

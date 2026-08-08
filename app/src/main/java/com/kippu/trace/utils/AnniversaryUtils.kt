@@ -3,11 +3,20 @@ package com.kippu.trace.utils
 import android.content.res.Resources
 import com.kippu.trace.R
 import com.kippu.trace.model.DateEvent
+import com.kippu.trace.model.DisplayMode
 import com.kippu.trace.model.RepeatMode
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
+
+fun isRepeatConfigurationValid(
+    mode: DisplayMode,
+    repeatMode: RepeatMode,
+    repeatCustomDays: Int,
+): Boolean = mode != DisplayMode.COUNT_DOWN ||
+        repeatMode != RepeatMode.CUSTOM_DAYS ||
+        repeatCustomDays > 0
 
 /**
  * 纪念日触发类型
@@ -46,9 +55,21 @@ data class AnniversaryTrigger(
                     r.count,
                     r.baseDays,
                 )
-                AnniversaryType.YEAR -> resources.getString(R.string.anniversary_year_text, r.count)
-                AnniversaryType.MONTH -> resources.getString(R.string.anniversary_month_text, r.count)
-                AnniversaryType.WEEK -> resources.getString(R.string.anniversary_week_text, r.count)
+                AnniversaryType.YEAR -> resources.getQuantityString(
+                    R.plurals.anniversary_year_text,
+                    r.count,
+                    r.count,
+                )
+                AnniversaryType.MONTH -> resources.getQuantityString(
+                    R.plurals.anniversary_month_text,
+                    r.count,
+                    r.count,
+                )
+                AnniversaryType.WEEK -> resources.getQuantityString(
+                    R.plurals.anniversary_week_text,
+                    r.count,
+                    r.count,
+                )
             }
         }
     }

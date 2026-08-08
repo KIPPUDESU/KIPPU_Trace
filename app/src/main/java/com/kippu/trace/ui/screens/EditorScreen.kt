@@ -53,6 +53,7 @@ import com.kippu.trace.ui.theme.KIPPU_TraceTheme
 import com.kippu.trace.utils.FileUtils
 import com.kippu.trace.utils.TextUtils
 import com.kippu.trace.utils.buildTitleWithPrefixAnnotatedString
+import com.kippu.trace.utils.isRepeatConfigurationValid
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -119,6 +120,7 @@ fun EditorScreen(
 
     val untitledText = stringResource(R.string.untitled)
     val sampleTitleText = stringResource(R.string.sample_title)
+    val isRepeatValid = isRepeatConfigurationValid(mode, repeatMode, repeatCustomDays)
 
     if (showDatePicker.value) {
         val datePickerState = rememberDatePickerState(initialSelectedDateMillis = selectedDate)
@@ -225,6 +227,7 @@ fun EditorScreen(
 
                         Button(
                             onClick = { showDatePicker.value = false },
+                            enabled = isRepeatValid,
                             modifier = Modifier.fillMaxWidth().height(48.dp),
                             shape = RoundedCornerShape(14.dp)
                         ) {
@@ -246,24 +249,27 @@ fun EditorScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = {
-                        onSave(DateEvent(
-                            title = titleState.text.toString().ifEmpty { untitledText },
-                            targetDate = selectedDate,
-                            isFuture = mode == DisplayMode.COUNT_DOWN,
-                            mode = mode,
-                            isPinned = isPinned,
-                            backgroundUri = backgroundUri,
-                            maskOpacity = maskOpacity,
-                            repeatMode = repeatMode,
-                            repeatCustomDays = repeatCustomDays,
-                            customAnniversaryDays = customAnniversaryDays,
-                            anniversaryYearEnabled = anniversaryYearEnabled,
-                            anniversaryMonthEnabled = anniversaryMonthEnabled,
-                            anniversaryWeekEnabled = anniversaryWeekEnabled,
-                            anniversaryCombinedText = anniversaryCombinedText,
-                        ))
-                    }) {
+                    IconButton(
+                        enabled = isRepeatValid,
+                        onClick = {
+                            onSave(DateEvent(
+                                title = titleState.text.toString().ifEmpty { untitledText },
+                                targetDate = selectedDate,
+                                isFuture = mode == DisplayMode.COUNT_DOWN,
+                                mode = mode,
+                                isPinned = isPinned,
+                                backgroundUri = backgroundUri,
+                                maskOpacity = maskOpacity,
+                                repeatMode = repeatMode,
+                                repeatCustomDays = repeatCustomDays,
+                                customAnniversaryDays = customAnniversaryDays,
+                                anniversaryYearEnabled = anniversaryYearEnabled,
+                                anniversaryMonthEnabled = anniversaryMonthEnabled,
+                                anniversaryWeekEnabled = anniversaryWeekEnabled,
+                                anniversaryCombinedText = anniversaryCombinedText,
+                            ))
+                        }
+                    ) {
                         Icon(painter = rememberVectorPainter(Icons.Default.Check), contentDescription = "Save", tint = MaterialTheme.colorScheme.primary)
                     }
                 }

@@ -36,8 +36,8 @@ import com.kippu.trace.utils.TextUtils
 import com.kippu.trace.utils.fadeRightEdge
 import com.kippu.trace.utils.fadeLastLineEdge
 import com.kippu.trace.utils.getLastLineHeightFraction
+import com.kippu.trace.utils.rememberCurrentDate
 import java.time.Instant
-import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 
@@ -50,7 +50,7 @@ fun PinnedEventCard(
     val targetLocalDate = Instant.ofEpochMilli(event.targetDate)
         .atZone(ZoneId.systemDefault())
         .toLocalDate()
-    val today = LocalDate.now()
+    val today = rememberCurrentDate()
     val days = ChronoUnit.DAYS.between(today, targetLocalDate).let { if (it < 0) -it else it }
 
     val anniversary = AnniversaryUtils.checkAllAnniversaries(event)

@@ -52,6 +52,7 @@ import com.kippu.trace.R
 import com.kippu.trace.model.DateEvent
 import com.kippu.trace.model.DisplayMode
 import com.kippu.trace.utils.FileUtils
+import com.kippu.trace.utils.isRepeatConfigurationValid
 import kotlinx.coroutines.launch
 import com.kippu.trace.ui.components.AnniversaryConfigSection
 import com.kippu.trace.ui.components.NormalEventCard
@@ -204,6 +205,11 @@ fun HomeScreen(
 
     if (editingEvent != null) {
         val event = editingEvent!!
+        val isRepeatValid = isRepeatConfigurationValid(
+            event.mode,
+            event.repeatMode,
+            event.repeatCustomDays,
+        )
         val titleState = rememberTextFieldState()
         LaunchedEffect(event.title) {
             if (titleState.text.toString() != event.title) {
@@ -280,6 +286,7 @@ fun HomeScreen(
                                         editDatePickerState.selectedDateMillis?.let { millis ->
                                             editingEvent = editingEvent?.copy(
                                                 targetDate = millis,
+                                                isFuture = millis > System.currentTimeMillis(),
                                                 mode = if (millis > System.currentTimeMillis()) DisplayMode.COUNT_DOWN else DisplayMode.ACCUMULATE
                                             )
                                         }
@@ -323,6 +330,7 @@ fun HomeScreen(
 
                             Button(
                                 onClick = { showEditDatePicker.value = false },
+                                enabled = isRepeatValid,
                                 modifier = Modifier.fillMaxWidth().height(48.dp),
                                 shape = RoundedCornerShape(14.dp)
                             ) {
@@ -462,6 +470,7 @@ fun HomeScreen(
                         )
                         editingEvent = null
                     },
+                    enabled = isRepeatValid,
                     modifier = Modifier.fillMaxWidth().height(48.dp),
                     shape = RoundedCornerShape(14.dp)
                 ) {

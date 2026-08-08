@@ -56,11 +56,13 @@ import coil.compose.AsyncImage
 import com.kippu.trace.R
 import com.kippu.trace.model.DateEvent
 import com.kippu.trace.model.DisplayMode
+import com.kippu.trace.ui.components.AnniversaryConfigSection
 import com.kippu.trace.ui.theme.AnniversaryGoldOnDark
 import com.kippu.trace.utils.AnniversaryUtils
 import com.kippu.trace.utils.FileUtils
 import com.kippu.trace.utils.TimeUtils
 import com.kippu.trace.utils.buildTitleWithPrefixAnnotatedString
+import com.kippu.trace.utils.isRepeatConfigurationValid
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -89,6 +91,8 @@ fun DetailScreen(
     // 日期选择
     var showDatePicker by remember { mutableStateOf(false) }
     val datePickerState = rememberDatePickerState()
+    var datePickerStep by remember { mutableIntStateOf(0) }
+    var pendingDateEvent by remember { mutableStateOf<DateEvent?>(null) }
 
     // 标题编辑
     var showTitleEditDialog by remember { mutableStateOf(false) }
@@ -340,9 +344,16 @@ fun DetailScreen(
                                 title = stringResource(R.string.adjust_date),
                                 subtitle = stringResource(R.string.adjust_date_subtitle),
                                 shape = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp),
-                                onClick = { 
+                                onClick = {
                                     showBottomSheet = false
-                                    showDatePicker = true
+                                    val realIndex = pagerState.currentPage % events.size
+                                    events.getOrNull(realIndex)?.let { currentEvent ->
+                                        pendingDateEvent = currentEvent
+                                        datePickerState.selectedDateMillis = currentEvent.targetDate
+                                        datePickerState.displayedMonthMillis = currentEvent.targetDate
+                                        datePickerStep = 0
+                                        showDatePicker = true
+                                    }
                                 }
                             )
                         }
@@ -392,7 +403,10 @@ fun DetailScreen(
         // 小一些的日期选择器
         if (showDatePicker) {
             androidx.compose.ui.window.Dialog(
-                onDismissRequest = { showDatePicker = false },
+                onDismissRequest = {
+                    showDatePicker = false
+                    pendingDateEvent = null
+                },
                 properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
             ) {
                 Surface(
@@ -405,15 +419,16 @@ fun DetailScreen(
                         .fillMaxWidth(0.85f)
                         .wrapContentHeight()
                 ) {
-                    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                        val scope = this
-                        // 根据容器实际宽度计算缩放比例。360dp 是 DatePicker 完整显示所需的理想宽度
-                        val scale = (scope.maxWidth / 360.dp).coerceIn(0.88f, 1.1f)
+                    if (datePickerStep == 0) {
+                        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                            val scope = this
+                            // 根据容器实际宽度计算缩放比例。360dp 是 DatePicker 完整显示所需的理想宽度
+                            val scale = (scope.maxWidth / 360.dp).coerceIn(0.88f, 1.1f)
                         
-                        Column(
-                            modifier = Modifier.padding(top = 20.dp, bottom = 0.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
+                            Column(
+                                modifier = Modifier.padding(top = 20.dp, bottom = 0.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
                             Text(
                                 text = stringResource(R.string.select_date),
                                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
@@ -465,27 +480,80 @@ fun DetailScreen(
                                     .offset(y = (-20).dp),
                                 horizontalArrangement = Arrangement.End
                             ) {
-                                TextButton(onClick = { showDatePicker = false }) {
+                                TextButton(onClick = {
+                                    showDatePicker = false
+                                    pendingDateEvent = null
+                                }) {
                                     Text(stringResource(R.string.cancel))
                                 }
                                 TextButton(onClick = {
                                     val selectedMillis = datePickerState.selectedDateMillis
                                     if (selectedMillis != null) {
-                                        val realIndex = pagerState.currentPage % events.size
-                                        val currentEvent = events.getOrNull(realIndex)
-                                        if (currentEvent != null) {
-                                            val isFuture = selectedMillis > System.currentTimeMillis()
-                                            val newMode = if (isFuture) DisplayMode.COUNT_DOWN else DisplayMode.ACCUMULATE
-                                            onUpdateEvent(currentEvent.copy(
-                                                targetDate = selectedMillis,
-                                                isFuture = isFuture,
-                                                mode = newMode
-                                            ))
-                                        }
+                                        val isFuture = selectedMillis > System.currentTimeMillis()
+                                        pendingDateEvent = pendingDateEvent?.copy(
+                                            targetDate = selectedMillis,
+                                            isFuture = isFuture,
+                                            mode = if (isFuture) DisplayMode.COUNT_DOWN else DisplayMode.ACCUMULATE,
+                                        )
                                     }
-                                    showDatePicker = false
+                                    datePickerStep = 1
                                 }) {
-                                    Text(stringResource(R.string.confirm))
+                                    Text(stringResource(R.string.next))
+                                }
+                            }
+                        }
+                    }
+                    } else {
+                        pendingDateEvent?.let { pendingEvent ->
+                            val isRepeatValid = isRepeatConfigurationValid(
+                                pendingEvent.mode,
+                                pendingEvent.repeatMode,
+                                pendingEvent.repeatCustomDays,
+                            )
+                            Column(
+                                modifier = Modifier.padding(24.dp),
+                                verticalArrangement = Arrangement.spacedBy(16.dp),
+                            ) {
+                                Text(
+                                    text = stringResource(
+                                        if (pendingEvent.mode == DisplayMode.COUNT_DOWN) {
+                                            R.string.repeat_section
+                                        } else {
+                                            R.string.anniversary_section
+                                        }
+                                    ),
+                                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                                )
+
+                                AnniversaryConfigSection(
+                                    mode = pendingEvent.mode,
+                                    repeatMode = pendingEvent.repeatMode,
+                                    onRepeatModeChange = { pendingDateEvent = pendingEvent.copy(repeatMode = it) },
+                                    repeatCustomDays = pendingEvent.repeatCustomDays,
+                                    onRepeatCustomDaysChange = { pendingDateEvent = pendingEvent.copy(repeatCustomDays = it) },
+                                    customAnniversaryDays = pendingEvent.customAnniversaryDays,
+                                    onCustomAnniversaryDaysChange = { pendingDateEvent = pendingEvent.copy(customAnniversaryDays = it) },
+                                    anniversaryYearEnabled = pendingEvent.anniversaryYearEnabled,
+                                    onAnniversaryYearChange = { pendingDateEvent = pendingEvent.copy(anniversaryYearEnabled = it) },
+                                    anniversaryMonthEnabled = pendingEvent.anniversaryMonthEnabled,
+                                    onAnniversaryMonthChange = { pendingDateEvent = pendingEvent.copy(anniversaryMonthEnabled = it) },
+                                    anniversaryWeekEnabled = pendingEvent.anniversaryWeekEnabled,
+                                    onAnniversaryWeekChange = { pendingDateEvent = pendingEvent.copy(anniversaryWeekEnabled = it) },
+                                    anniversaryCombinedText = pendingEvent.anniversaryCombinedText,
+                                    onAnniversaryCombinedTextChange = { pendingDateEvent = pendingEvent.copy(anniversaryCombinedText = it) },
+                                )
+
+                                Button(
+                                    onClick = {
+                                        onUpdateEvent(pendingEvent)
+                                        showDatePicker = false
+                                        pendingDateEvent = null
+                                    },
+                                    enabled = isRepeatValid,
+                                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                                    shape = RoundedCornerShape(14.dp),
+                                ) {
+                                    Text(stringResource(R.string.confirm), style = MaterialTheme.typography.labelLarge)
                                 }
                             }
                         }
