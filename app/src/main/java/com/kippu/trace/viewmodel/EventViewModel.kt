@@ -43,27 +43,34 @@ class EventViewModel(application: Application) : AndroidViewModel(application) {
         if (!advancing.compareAndSet(false, true)) return
         viewModelScope.launch {
             try {
-                val events = withContext(Dispatchers.IO) { repository.getAllEventsOnce() }
-                val updated = events.mapNotNull { event ->
-                    if (event.mode == DisplayMode.COUNT_DOWN && event.repeatMode != RepeatMode.NONE) {
+                val updatedCount = withContext(Dispatchers.IO) {
+                    var count = 0
+                    for (event in repository.getAllEventsOnce()) {
+                        if (event.mode != DisplayMode.COUNT_DOWN || event.repeatMode == RepeatMode.NONE) {
+                            continue
+                        }
+
                         val repeatAnchor = event.repeatAnchorDate ?: event.targetDate
                         val newTarget = AnniversaryUtils.advanceTargetDate(
                             event.targetDate,
                             repeatAnchor,
                             event.repeatMode,
                             event.repeatCustomDays,
-                        )
-                        if (newTarget != null) {
-                            event.copy(
-                                targetDate = newTarget,
-                                isFuture = true,
-                                repeatAnchorDate = repeatAnchor,
+                        ) ?: continue
+
+                        if (
+                            repository.advanceCountdownIfUnchanged(
+                                event = event,
+                                newTargetDate = newTarget,
+                                newAnchorDate = repeatAnchor,
                             )
-                        } else null
-                    } else null
+                        ) {
+                            count += 1
+                        }
+                    }
+                    count
                 }
-                if (updated.isNotEmpty()) {
-                    withContext(Dispatchers.IO) { repository.updateEvents(updated) }
+                if (updatedCount > 0) {
                     TraceWidgetUpdater.requestAllUpdate(getApplication())
                 }
             } finally {

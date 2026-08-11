@@ -56,19 +56,18 @@ import coil.compose.AsyncImage
 import com.kippu.trace.R
 import com.kippu.trace.model.DateEvent
 import com.kippu.trace.model.DisplayMode
-import com.kippu.trace.model.RepeatMode
-import com.kippu.trace.ui.components.AnniversaryConfigSection
+import com.kippu.trace.ui.components.DateConfigurationWizard
+import com.kippu.trace.ui.components.rememberCurrentDate
+import com.kippu.trace.ui.components.toDateConfiguration
+import com.kippu.trace.ui.components.withDateConfiguration
 import com.kippu.trace.ui.theme.AnniversaryGoldOnDark
 import com.kippu.trace.utils.AnniversaryUtils
+import com.kippu.trace.utils.EventDateUtils
 import com.kippu.trace.utils.FileUtils
 import com.kippu.trace.utils.TimeUtils
 import com.kippu.trace.utils.buildTitleWithPrefixAnnotatedString
-import com.kippu.trace.utils.isRepeatConfigurationValid
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import java.util.Locale
 import kotlin.math.abs
@@ -91,8 +90,6 @@ fun DetailScreen(
     
     // 日期选择
     var showDatePicker by remember { mutableStateOf(false) }
-    val datePickerState = rememberDatePickerState()
-    var datePickerStep by remember { mutableIntStateOf(0) }
     var pendingDateEvent by remember { mutableStateOf<DateEvent?>(null) }
 
     // 标题编辑
@@ -350,9 +347,6 @@ fun DetailScreen(
                                     val realIndex = pagerState.currentPage % events.size
                                     events.getOrNull(realIndex)?.let { currentEvent ->
                                         pendingDateEvent = currentEvent
-                                        datePickerState.selectedDateMillis = currentEvent.targetDate
-                                        datePickerState.displayedMonthMillis = currentEvent.targetDate
-                                        datePickerStep = 0
                                         showDatePicker = true
                                     }
                                 }
@@ -401,177 +395,20 @@ fun DetailScreen(
             )
         }
 
-        // 小一些的日期选择器
         if (showDatePicker) {
-            androidx.compose.ui.window.Dialog(
-                onDismissRequest = {
-                    showDatePicker = false
-                    pendingDateEvent = null
-                },
-                properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(28.dp),
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 0.dp,
-                    modifier = Modifier
-                        // 手机上默认 320dp，在大屏（如 Pad）下最高可扩展至 480dp
-                        .widthIn(min = 320.dp, max = 480.dp)
-                        .fillMaxWidth(0.85f)
-                        .wrapContentHeight()
-                ) {
-                    if (datePickerStep == 0) {
-                        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                            val scope = this
-                            // 根据容器实际宽度计算缩放比例。360dp 是 DatePicker 完整显示所需的理想宽度
-                            val scale = (scope.maxWidth / 360.dp).coerceIn(0.88f, 1.1f)
-                        
-                            Column(
-                                modifier = Modifier.padding(top = 20.dp, bottom = 0.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                            Text(
-                                text = stringResource(R.string.select_date),
-                                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                                modifier = Modifier
-                                    .align(Alignment.Start)
-                                    .padding(start = 20.dp, end = 20.dp, bottom = 8.dp)
-                            )
-                            
-                            Box(
-                                modifier = Modifier.fillMaxWidth().wrapContentHeight(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                // 通过局部覆盖 Typography 来拉开星期与日期之间的间隙
-                                MaterialTheme(
-                                    colorScheme = MaterialTheme.colorScheme,
-                                    shapes = MaterialTheme.shapes,
-                                    typography = MaterialTheme.typography.copy(
-                                        labelLarge = MaterialTheme.typography.labelLarge.copy(
-                                            fontSize = 12.sp,
-                                            lineHeight = 48.sp
-                                        )
-                                    )
-                                ) {
-                                    DatePicker(
-                                        state = datePickerState,
-                                        title = null,
-                                        headline = null,
-                                        showModeToggle = false,
-                                        colors = DatePickerDefaults.colors(
-                                            containerColor = MaterialTheme.colorScheme.surface,
-                                            dividerColor = Color.Transparent
-                                        ),
-                                        modifier = Modifier
-                                            // 强制指定 DatePicker 宽度为 360dp 以防止其内部日期列丢失
-                                            .requiredWidth(360.dp)
-                                            // 缩放以适配外部 Surface 容器
-                                            .scale(scale)
-                                            // 向上偏移，减少与标题的间距
-                                            .offset(y = (-12).dp)
-                                    )
-                                }
-                            }
-
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp)
-                                    // 向上偏移，减少与日历底部的间距
-                                    .offset(y = (-20).dp),
-                                horizontalArrangement = Arrangement.End
-                            ) {
-                                TextButton(onClick = {
-                                    showDatePicker = false
-                                    pendingDateEvent = null
-                                }) {
-                                    Text(stringResource(R.string.cancel))
-                                }
-                                TextButton(onClick = {
-                                    val selectedMillis = datePickerState.selectedDateMillis
-                                    if (selectedMillis != null) {
-                                        val isFuture = selectedMillis > System.currentTimeMillis()
-                                        pendingDateEvent = pendingDateEvent?.copy(
-                                            targetDate = selectedMillis,
-                                            isFuture = isFuture,
-                                            mode = if (isFuture) DisplayMode.COUNT_DOWN else DisplayMode.ACCUMULATE,
-                                            repeatAnchorDate = if (
-                                                pendingDateEvent?.repeatMode != RepeatMode.NONE
-                                            ) selectedMillis else null,
-                                        )
-                                    }
-                                    datePickerStep = 1
-                                }) {
-                                    Text(stringResource(R.string.next))
-                                }
-                            }
-                        }
-                    }
-                    } else {
-                        pendingDateEvent?.let { pendingEvent ->
-                            val isRepeatValid = isRepeatConfigurationValid(
-                                pendingEvent.mode,
-                                pendingEvent.repeatMode,
-                                pendingEvent.repeatCustomDays,
-                            )
-                            Column(
-                                modifier = Modifier.padding(24.dp),
-                                verticalArrangement = Arrangement.spacedBy(16.dp),
-                            ) {
-                                Text(
-                                    text = stringResource(
-                                        if (pendingEvent.mode == DisplayMode.COUNT_DOWN) {
-                                            R.string.repeat_section
-                                        } else {
-                                            R.string.anniversary_section
-                                        }
-                                    ),
-                                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                                )
-
-                                AnniversaryConfigSection(
-                                    mode = pendingEvent.mode,
-                                    repeatMode = pendingEvent.repeatMode,
-                                    onRepeatModeChange = { repeatMode ->
-                                        pendingDateEvent = pendingEvent.copy(
-                                            repeatMode = repeatMode,
-                                            repeatAnchorDate = if (repeatMode == RepeatMode.NONE) {
-                                                null
-                                            } else {
-                                                pendingEvent.repeatAnchorDate ?: pendingEvent.targetDate
-                                            },
-                                        )
-                                    },
-                                    repeatCustomDays = pendingEvent.repeatCustomDays,
-                                    onRepeatCustomDaysChange = { pendingDateEvent = pendingEvent.copy(repeatCustomDays = it) },
-                                    customAnniversaryDays = pendingEvent.customAnniversaryDays,
-                                    onCustomAnniversaryDaysChange = { pendingDateEvent = pendingEvent.copy(customAnniversaryDays = it) },
-                                    anniversaryYearEnabled = pendingEvent.anniversaryYearEnabled,
-                                    onAnniversaryYearChange = { pendingDateEvent = pendingEvent.copy(anniversaryYearEnabled = it) },
-                                    anniversaryMonthEnabled = pendingEvent.anniversaryMonthEnabled,
-                                    onAnniversaryMonthChange = { pendingDateEvent = pendingEvent.copy(anniversaryMonthEnabled = it) },
-                                    anniversaryWeekEnabled = pendingEvent.anniversaryWeekEnabled,
-                                    onAnniversaryWeekChange = { pendingDateEvent = pendingEvent.copy(anniversaryWeekEnabled = it) },
-                                    anniversaryCombinedText = pendingEvent.anniversaryCombinedText,
-                                    onAnniversaryCombinedTextChange = { pendingDateEvent = pendingEvent.copy(anniversaryCombinedText = it) },
-                                )
-
-                                Button(
-                                    onClick = {
-                                        onUpdateEvent(pendingEvent)
-                                        showDatePicker = false
-                                        pendingDateEvent = null
-                                    },
-                                    enabled = isRepeatValid,
-                                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                                    shape = RoundedCornerShape(14.dp),
-                                ) {
-                                    Text(stringResource(R.string.confirm), style = MaterialTheme.typography.labelLarge)
-                                }
-                            }
-                        }
-                    }
-                }
+            pendingDateEvent?.let { pendingEvent ->
+                DateConfigurationWizard(
+                    initialConfiguration = pendingEvent.toDateConfiguration(),
+                    onConfirm = { configuration ->
+                        onUpdateEvent(pendingEvent.withDateConfiguration(configuration))
+                        showDatePicker = false
+                        pendingDateEvent = null
+                    },
+                    onDismiss = {
+                        showDatePicker = false
+                        pendingDateEvent = null
+                    },
+                )
             }
         }
     }
@@ -682,10 +519,11 @@ fun EventDetailItem(
 ) {
     val context = LocalContext.current
     val graphicsLayer = rememberGraphicsLayer()
-    val targetLocalDate = Instant.ofEpochMilli(event.targetDate).atZone(ZoneId.systemDefault()).toLocalDate()
-    val days = ChronoUnit.DAYS.between(LocalDate.now(), targetLocalDate).let { if (it < 0) -it else it }
+    val targetLocalDate = EventDateUtils.fromStoredMillis(event.targetDate)
+    val today = rememberCurrentDate()
+    val days = ChronoUnit.DAYS.between(today, targetLocalDate).let { if (it < 0) -it else it }
 
-    val anniversary = AnniversaryUtils.checkAllAnniversaries(event)
+    val anniversary = AnniversaryUtils.checkAllAnniversaries(event, today)
 
     val animatedDays = remember { Animatable(0f) }
     var detailedTime by remember { mutableStateOf(TimeUtils.getDetailedTime(event.targetDate)) }

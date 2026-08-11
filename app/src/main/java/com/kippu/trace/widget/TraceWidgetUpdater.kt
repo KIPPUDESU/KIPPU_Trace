@@ -13,12 +13,11 @@ import com.kippu.trace.MainActivity
 import com.kippu.trace.R
 import com.kippu.trace.data.AppDatabase
 import com.kippu.trace.model.DateEvent
+import com.kippu.trace.utils.EventDateUtils
 import com.kippu.trace.utils.LanguageMode
 import com.kippu.trace.utils.LanguagePreferences
 import com.kippu.trace.utils.TextUtils
-import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
@@ -257,18 +256,13 @@ object TraceWidgetUpdater {
     }
 
     private fun calculateDays(targetDateMillis: Long): Long {
-        val targetLocalDate = Instant.ofEpochMilli(targetDateMillis)
-            .atZone(ZoneId.systemDefault())
-            .toLocalDate()
+        val targetLocalDate = EventDateUtils.fromStoredMillis(targetDateMillis)
         val today = LocalDate.now()
         return ChronoUnit.DAYS.between(today, targetLocalDate).let { if (it < 0) -it else it }
     }
 
     private fun formatTargetDate(targetDateMillis: Long): String {
-        return Instant.ofEpochMilli(targetDateMillis)
-            .atZone(ZoneId.systemDefault())
-            .toLocalDate()
-            .format(dateFormatter)
+        return EventDateUtils.fromStoredMillis(targetDateMillis).format(dateFormatter)
     }
 
     private fun dpToPx(context: Context, dp: Int): Int {

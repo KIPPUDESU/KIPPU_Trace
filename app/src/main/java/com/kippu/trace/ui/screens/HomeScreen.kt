@@ -46,20 +46,18 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.kippu.trace.R
 import com.kippu.trace.model.DateEvent
 import com.kippu.trace.model.DisplayMode
-import com.kippu.trace.model.RepeatMode
 import com.kippu.trace.utils.FileUtils
+import com.kippu.trace.utils.EventDateUtils
 import com.kippu.trace.utils.isRepeatConfigurationValid
 import kotlinx.coroutines.launch
-import com.kippu.trace.ui.components.AnniversaryConfigSection
+import com.kippu.trace.ui.components.DateConfigurationWizard
 import com.kippu.trace.ui.components.NormalEventCard
 import com.kippu.trace.ui.components.PinnedEventCard
-import java.time.Instant
-import java.time.ZoneId
+import com.kippu.trace.ui.components.toDateConfiguration
+import com.kippu.trace.ui.components.withDateConfiguration
 import java.time.format.DateTimeFormatter
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -229,130 +227,14 @@ fun HomeScreen(
         val showEditDatePicker = remember { mutableStateOf(false) }
 
         if (showEditDatePicker.value) {
-            val editDatePickerState = rememberDatePickerState(initialSelectedDateMillis = event.targetDate)
-            var editDatePickerStep by remember { mutableIntStateOf(0) }  // 0=日期选择 1=纪念日/重置设置
-
-            Dialog(
-                onDismissRequest = { showEditDatePicker.value = false },
-                properties = DialogProperties(usePlatformDefaultWidth = false)
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(28.dp),
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 0.dp,
-                    modifier = Modifier
-                        .widthIn(min = 320.dp, max = 480.dp)
-                        .fillMaxWidth(0.85f)
-                        .wrapContentHeight()
-                ) {
-                    if (editDatePickerStep == 0) {
-                        // 第一步：选择日期
-                        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                            val scale = (this.maxWidth / 360.dp).coerceIn(0.88f, 1.1f)
-                            Column(
-                                modifier = Modifier.padding(top = 20.dp, bottom = 16.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Text(
-                                    text = stringResource(R.string.select_date),
-                                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                                    modifier = Modifier
-                                        .align(Alignment.Start)
-                                        .padding(start = 20.dp, end = 20.dp, bottom = 8.dp)
-                                )
-                                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                                    DatePicker(
-                                        state = editDatePickerState,
-                                        title = null,
-                                        headline = null,
-                                        showModeToggle = false,
-                                        colors = DatePickerDefaults.colors(
-                                            containerColor = MaterialTheme.colorScheme.surface,
-                                            dividerColor = Color.Transparent
-                                        ),
-                                        modifier = Modifier
-                                            .requiredWidth(360.dp)
-                                            .scale(scale)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                                    horizontalArrangement = Arrangement.End
-                                ) {
-                                    TextButton(onClick = { showEditDatePicker.value = false }) {
-                                        Text(stringResource(R.string.cancel))
-                                    }
-                                    TextButton(onClick = {
-                                        editDatePickerState.selectedDateMillis?.let { millis ->
-                                            editingEvent = editingEvent?.copy(
-                                                targetDate = millis,
-                                                isFuture = millis > System.currentTimeMillis(),
-                                                mode = if (millis > System.currentTimeMillis()) DisplayMode.COUNT_DOWN else DisplayMode.ACCUMULATE,
-                                                repeatAnchorDate = if (event.repeatMode != RepeatMode.NONE) millis else null,
-                                            )
-                                        }
-                                        editDatePickerStep = 1
-                                    }) {
-                                        Text(stringResource(R.string.next))
-                                    }
-                                }
-                            }
-                        }
-                    } else {
-                        // 第二步：Reset / Anniversary 设置
-                        Column(
-                            modifier = Modifier.padding(24.dp),
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            Text(
-                                text = stringResource(
-                                    if (event.mode == DisplayMode.COUNT_DOWN) R.string.repeat_section else R.string.anniversary_section
-                                ),
-                                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
-                            )
-
-                            AnniversaryConfigSection(
-                                mode = event.mode,
-                                repeatMode = event.repeatMode,
-                                onRepeatModeChange = { repeatMode ->
-                                    editingEvent = editingEvent?.let { current ->
-                                        current.copy(
-                                            repeatMode = repeatMode,
-                                            repeatAnchorDate = if (repeatMode == RepeatMode.NONE) {
-                                                null
-                                            } else {
-                                                current.repeatAnchorDate ?: current.targetDate
-                                            },
-                                        )
-                                    }
-                                },
-                                repeatCustomDays = event.repeatCustomDays,
-                                onRepeatCustomDaysChange = { editingEvent = editingEvent?.copy(repeatCustomDays = it) },
-                                customAnniversaryDays = event.customAnniversaryDays,
-                                onCustomAnniversaryDaysChange = { editingEvent = editingEvent?.copy(customAnniversaryDays = it) },
-                                anniversaryYearEnabled = event.anniversaryYearEnabled,
-                                onAnniversaryYearChange = { editingEvent = editingEvent?.copy(anniversaryYearEnabled = it) },
-                                anniversaryMonthEnabled = event.anniversaryMonthEnabled,
-                                onAnniversaryMonthChange = { editingEvent = editingEvent?.copy(anniversaryMonthEnabled = it) },
-                                anniversaryWeekEnabled = event.anniversaryWeekEnabled,
-                                onAnniversaryWeekChange = { editingEvent = editingEvent?.copy(anniversaryWeekEnabled = it) },
-                                anniversaryCombinedText = event.anniversaryCombinedText,
-                                onAnniversaryCombinedTextChange = { editingEvent = editingEvent?.copy(anniversaryCombinedText = it) },
-                            )
-
-                            Button(
-                                onClick = { showEditDatePicker.value = false },
-                                enabled = isRepeatValid,
-                                modifier = Modifier.fillMaxWidth().height(48.dp),
-                                shape = RoundedCornerShape(14.dp)
-                            ) {
-                                Text(stringResource(R.string.confirm), style = MaterialTheme.typography.labelLarge)
-                            }
-                        }
-                    }
-                }
-            }
+            DateConfigurationWizard(
+                initialConfiguration = event.toDateConfiguration(),
+                onConfirm = { configuration ->
+                    editingEvent = editingEvent?.withDateConfiguration(configuration)
+                    showEditDatePicker.value = false
+                },
+                onDismiss = { showEditDatePicker.value = false },
+            )
         }
 
         ModalBottomSheet(
@@ -402,7 +284,7 @@ fun HomeScreen(
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     val editTargetLocalDate = remember(event.targetDate) {
-                        Instant.ofEpochMilli(event.targetDate).atZone(ZoneId.systemDefault()).toLocalDate()
+                        EventDateUtils.fromStoredMillis(event.targetDate)
                     }
                     val editFormattedDate = remember(editTargetLocalDate) {
                         editTargetLocalDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
@@ -478,7 +360,7 @@ fun HomeScreen(
                         onUpdateEvent(
                             event.copy(
                                 title = titleState.text.toString().ifEmpty { context.getString(R.string.untitled) },
-                                isFuture = event.targetDate > System.currentTimeMillis()
+                                isFuture = event.mode == DisplayMode.COUNT_DOWN,
                             )
                         )
                         editingEvent = null

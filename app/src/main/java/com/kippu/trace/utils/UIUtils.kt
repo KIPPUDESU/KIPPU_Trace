@@ -1,11 +1,5 @@
 package com.kippu.trace.utils
 
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.BlendMode
@@ -17,28 +11,6 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.delay
-import java.time.Duration
-import java.time.LocalDate
-import java.time.ZoneId
-import java.time.ZonedDateTime
-
-@Composable
-fun rememberCurrentDate(zoneId: ZoneId = ZoneId.systemDefault()): LocalDate {
-    var currentDate by remember(zoneId) { mutableStateOf(LocalDate.now(zoneId)) }
-
-    LaunchedEffect(zoneId) {
-        while (true) {
-            val now = ZonedDateTime.now(zoneId)
-            val nextMidnight = now.toLocalDate().plusDays(1).atStartOfDay(zoneId)
-            delay(Duration.between(now, nextMidnight).toMillis().coerceAtLeast(1L))
-            currentDate = LocalDate.now(zoneId)
-        }
-    }
-
-    return currentDate
-}
-
 // 根据实际可见行数计算最后一行占比，避免只淡出文字下半部分。
 fun getLastLineHeightFraction(lineCount: Int): Float {
     return 1f / lineCount.coerceAtLeast(1)

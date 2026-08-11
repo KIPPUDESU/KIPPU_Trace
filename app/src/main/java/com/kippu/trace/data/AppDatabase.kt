@@ -5,6 +5,7 @@ import androidx.room.*
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.kippu.trace.model.DateEvent
+import com.kippu.trace.model.RepeatMode
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -26,6 +27,33 @@ interface EventDao {
 
     @Update
     suspend fun updateEvents(events: List<DateEvent>)
+
+    @Query(
+        """
+        UPDATE date_events
+        SET targetDate = :newTargetDate,
+            isFuture = 1,
+            repeatAnchorDate = :newAnchorDate
+        WHERE id = :id
+          AND mode = 'COUNT_DOWN'
+          AND targetDate = :expectedTargetDate
+          AND repeatMode = :expectedRepeatMode
+          AND repeatCustomDays = :expectedCustomDays
+          AND (
+              (repeatAnchorDate IS NULL AND :expectedAnchorDate IS NULL)
+              OR repeatAnchorDate = :expectedAnchorDate
+          )
+        """
+    )
+    suspend fun advanceCountdownIfUnchanged(
+        id: Long,
+        expectedTargetDate: Long,
+        expectedRepeatMode: RepeatMode,
+        expectedCustomDays: Int,
+        expectedAnchorDate: Long?,
+        newTargetDate: Long,
+        newAnchorDate: Long,
+    ): Int
 
     @Query("DELETE FROM date_events")
     suspend fun deleteAll()

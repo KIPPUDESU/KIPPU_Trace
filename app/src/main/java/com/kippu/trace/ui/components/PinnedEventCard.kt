@@ -32,13 +32,11 @@ import com.kippu.trace.model.DateEvent
 import com.kippu.trace.model.DisplayMode
 import com.kippu.trace.ui.theme.AnniversaryGoldOnDark
 import com.kippu.trace.utils.AnniversaryUtils
+import com.kippu.trace.utils.EventDateUtils
 import com.kippu.trace.utils.TextUtils
 import com.kippu.trace.utils.fadeRightEdge
 import com.kippu.trace.utils.fadeLastLineEdge
 import com.kippu.trace.utils.getLastLineHeightFraction
-import com.kippu.trace.utils.rememberCurrentDate
-import java.time.Instant
-import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 
 @Composable
@@ -47,13 +45,11 @@ fun PinnedEventCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val targetLocalDate = Instant.ofEpochMilli(event.targetDate)
-        .atZone(ZoneId.systemDefault())
-        .toLocalDate()
+    val targetLocalDate = EventDateUtils.fromStoredMillis(event.targetDate)
     val today = rememberCurrentDate()
     val days = ChronoUnit.DAYS.between(today, targetLocalDate).let { if (it < 0) -it else it }
 
-    val anniversary = AnniversaryUtils.checkAllAnniversaries(event)
+    val anniversary = AnniversaryUtils.checkAllAnniversaries(event, today)
     val anniversaryText = if (anniversary.isTriggered) {
         anniversary.displayText(LocalContext.current.resources)
     } else {

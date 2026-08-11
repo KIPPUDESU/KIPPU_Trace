@@ -58,11 +58,10 @@ import com.kippu.trace.model.DisplayMode
 import com.kippu.trace.ui.theme.KIPPU_TraceTheme
 import com.kippu.trace.utils.LanguageMode
 import com.kippu.trace.utils.LanguagePreferences
+import com.kippu.trace.utils.EventDateUtils
 import com.kippu.trace.utils.ThemeMode
 import com.kippu.trace.utils.ThemePreferences
 import com.kippu.trace.viewmodel.EventViewModel
-import java.time.Instant
-import java.time.ZoneId
 import java.util.Locale
 import kotlinx.coroutines.launch
 
@@ -283,10 +282,7 @@ fun WidgetSelectionItem(event: DateEvent, onClick: () -> Unit) {
                     maxLines = 1
                 )
                 Text(
-                    text = Instant.ofEpochMilli(event.targetDate)
-                        .atZone(ZoneId.systemDefault())
-                        .toLocalDate()
-                        .toString(),
+                    text = EventDateUtils.fromStoredMillis(event.targetDate).toString(),
                     color = Color.White.copy(alpha = 0.6f),
                     fontSize = 12.sp
                 )

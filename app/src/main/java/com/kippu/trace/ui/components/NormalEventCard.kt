@@ -18,12 +18,10 @@ import com.kippu.trace.R
 import com.kippu.trace.model.DateEvent
 import com.kippu.trace.ui.theme.AnniversaryGold
 import com.kippu.trace.utils.AnniversaryUtils
+import com.kippu.trace.utils.EventDateUtils
 import com.kippu.trace.utils.TextUtils
 import com.kippu.trace.utils.TimeUtils
 import com.kippu.trace.utils.fadeRightEdge
-import com.kippu.trace.utils.rememberCurrentDate
-import java.time.Instant
-import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 
 @Composable
@@ -32,9 +30,7 @@ fun NormalEventCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val targetLocalDate = Instant.ofEpochMilli(event.targetDate)
-        .atZone(ZoneId.systemDefault())
-        .toLocalDate()
+    val targetLocalDate = EventDateUtils.fromStoredMillis(event.targetDate)
     val today = rememberCurrentDate()
     val daysTotal = ChronoUnit.DAYS.between(today, targetLocalDate).let { if (it < 0) -it else it }
     
@@ -46,7 +42,7 @@ fun NormalEventCard(
     val prefix = if (event.isFuture) stringResource(R.string.label_until) else stringResource(R.string.label_since)
 
     // 纪念日检查（仅累计模式）
-    val anniversary = AnniversaryUtils.checkAllAnniversaries(event)
+    val anniversary = AnniversaryUtils.checkAllAnniversaries(event, today)
     val subtitleText = if (anniversary.isTriggered) {
         anniversary.displayText(context.resources)
     } else {

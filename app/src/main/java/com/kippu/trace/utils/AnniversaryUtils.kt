@@ -5,7 +5,6 @@ import com.kippu.trace.R
 import com.kippu.trace.model.DateEvent
 import com.kippu.trace.model.DisplayMode
 import com.kippu.trace.model.RepeatMode
-import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
@@ -88,18 +87,22 @@ object AnniversaryUtils {
     // ─────────── 累计模式 ───────────
 
     /** 计算累计天数（目标日期到今天） */
-    fun accumulatedDays(targetDateMillis: Long): Long {
-        val targetDate = Instant.ofEpochMilli(targetDateMillis)
-            .atZone(ZoneId.of("UTC"))
-            .toLocalDate()
-        val today = LocalDate.now(ZoneId.systemDefault())
+    fun accumulatedDays(
+        targetDateMillis: Long,
+        today: LocalDate = LocalDate.now(ZoneId.systemDefault()),
+    ): Long {
+        val targetDate = EventDateUtils.fromStoredMillis(targetDateMillis)
         return ChronoUnit.DAYS.between(targetDate, today)
     }
 
     /** 检查自定义纪念日触发 */
-    fun checkCustomAnniversary(targetDateMillis: Long, n: Int): AnniversaryResult? {
+    fun checkCustomAnniversary(
+        targetDateMillis: Long,
+        n: Int,
+        today: LocalDate = LocalDate.now(ZoneId.systemDefault()),
+    ): AnniversaryResult? {
         if (n <= 0) return null
-        val days = accumulatedDays(targetDateMillis)
+        val days = accumulatedDays(targetDateMillis, today)
         if (days > 0 && days % n == 0L) {
             return AnniversaryResult(
                 type = AnniversaryType.CUSTOM,
@@ -115,14 +118,12 @@ object AnniversaryUtils {
         targetDateMillis: Long,
         yearEnabled: Boolean,
         monthEnabled: Boolean,
-        weekEnabled: Boolean
+        weekEnabled: Boolean,
+        today: LocalDate = LocalDate.now(ZoneId.systemDefault()),
     ): List<AnniversaryResult> {
         val results = mutableListOf<AnniversaryResult>()
 
-        val targetDate = Instant.ofEpochMilli(targetDateMillis)
-            .atZone(ZoneId.of("UTC"))
-            .toLocalDate()
-        val today = LocalDate.now(ZoneId.systemDefault())
+        val targetDate = EventDateUtils.fromStoredMillis(targetDateMillis)
 
         // 必须是自目标日期之后的未来/过去（非当天 && 非目标日期之前的一年内的同一天）
         if (!today.isAfter(targetDate)) return emptyList()
@@ -130,23 +131,21 @@ object AnniversaryUtils {
         val yearsDiff = today.year - targetDate.year
 
         // 年纪念日：同月同日
-        if (yearEnabled &&
-            today.month == targetDate.month &&
-            today.dayOfMonth == targetDate.dayOfMonth &&
-            yearsDiff > 0
+        if (
+            yearEnabled &&
+            yearsDiff > 0 &&
+            today == yearlyOccurrence(targetDate, yearsDiff)
         ) {
             results.add(AnniversaryResult(type = AnniversaryType.YEAR, count = yearsDiff))
         }
 
         // 月纪念日：每个完整月的同一天，周年当天也同时触发
-        if (monthEnabled &&
-            today.dayOfMonth == targetDate.dayOfMonth
-        ) {
-            // 计算自目标日期以来的累计月数
-            val monthsDiff = (yearsDiff * 12L +
-                    (today.monthValue - targetDate.monthValue).toLong())
-                .let { if (it < 0) it + 12 else it }
-            if (monthsDiff > 0) {
+        if (monthEnabled) {
+            val monthsDiff = ChronoUnit.MONTHS.between(
+                YearMonth.from(targetDate),
+                YearMonth.from(today),
+            )
+            if (monthsDiff > 0 && today == monthlyOccurrence(targetDate, monthsDiff)) {
                 results.add(AnniversaryResult(type = AnniversaryType.MONTH, count = monthsDiff.toInt()))
             }
         }
@@ -167,7 +166,10 @@ object AnniversaryUtils {
     }
 
     /** 综合检查某 event 当天的纪念日触发情况 */
-    fun checkAllAnniversaries(event: DateEvent): AnniversaryTrigger {
+    fun checkAllAnniversaries(
+        event: DateEvent,
+        today: LocalDate = LocalDate.now(ZoneId.systemDefault()),
+    ): AnniversaryTrigger {
         if (event.mode != com.kippu.trace.model.DisplayMode.ACCUMULATE) {
             return AnniversaryTrigger(emptyList(), null)
         }
@@ -176,7 +178,7 @@ object AnniversaryUtils {
 
         // 自定义纪念日
         if (event.customAnniversaryDays > 0) {
-            checkCustomAnniversary(event.targetDate, event.customAnniversaryDays)?.let {
+            checkCustomAnniversary(event.targetDate, event.customAnniversaryDays, today)?.let {
                 results.add(it)
             }
         }
@@ -187,7 +189,8 @@ object AnniversaryUtils {
                 event.targetDate,
                 event.anniversaryYearEnabled,
                 event.anniversaryMonthEnabled,
-                event.anniversaryWeekEnabled
+                event.anniversaryWeekEnabled,
+                today,
             )
         )
 
@@ -207,45 +210,39 @@ object AnniversaryUtils {
         currentTargetMillis: Long,
         repeatAnchorMillis: Long,
         repeatMode: RepeatMode,
-        customDays: Int
+        customDays: Int,
+        today: LocalDate = LocalDate.now(ZoneId.systemDefault()),
     ): Long? {
         if (repeatMode == RepeatMode.NONE) return null
 
-        val systemZone = ZoneId.systemDefault()
-        val now = LocalDate.now(systemZone)
-
-        val targetDate = Instant.ofEpochMilli(currentTargetMillis)
-            .atZone(ZoneId.of("UTC"))
-            .toLocalDate()
-        val anchorDate = Instant.ofEpochMilli(repeatAnchorMillis)
-            .atZone(ZoneId.of("UTC"))
-            .toLocalDate()
+        val targetDate = EventDateUtils.fromStoredMillis(currentTargetMillis)
+        val anchorDate = EventDateUtils.fromStoredMillis(repeatAnchorMillis)
 
         // 目标日期还没到，无需推进
-        if (!targetDate.isBefore(now)) return null
+        if (!targetDate.isBefore(today)) return null
 
         val next = when (repeatMode) {
             RepeatMode.CUSTOM_DAYS -> {
                 if (customDays <= 0) return null
-                nextDayBasedOccurrence(anchorDate, now, customDays.toLong())
+                nextDayBasedOccurrence(anchorDate, today, customDays.toLong())
             }
-            RepeatMode.WEEKLY -> nextDayBasedOccurrence(anchorDate, now, 7L)
+            RepeatMode.WEEKLY -> nextDayBasedOccurrence(anchorDate, today, 7L)
             RepeatMode.MONTHLY -> {
                 var offset = ChronoUnit.MONTHS.between(
                     YearMonth.from(anchorDate),
-                    YearMonth.from(now),
+                    YearMonth.from(today),
                 ).coerceAtLeast(0L)
                 var candidate = monthlyOccurrence(anchorDate, offset)
-                if (!candidate.isAfter(now)) {
+                if (!candidate.isAfter(today)) {
                     offset += 1
                     candidate = monthlyOccurrence(anchorDate, offset)
                 }
                 candidate
             }
             RepeatMode.YEARLY -> {
-                var offset = (now.year - anchorDate.year).coerceAtLeast(0)
+                var offset = (today.year - anchorDate.year).coerceAtLeast(0)
                 var candidate = yearlyOccurrence(anchorDate, offset)
-                if (!candidate.isAfter(now)) {
+                if (!candidate.isAfter(today)) {
                     offset += 1
                     candidate = yearlyOccurrence(anchorDate, offset)
                 }
@@ -255,9 +252,7 @@ object AnniversaryUtils {
         }
 
         // 转换回 UTC 午夜毫秒时间戳（与 DatePicker.selectedDateMillis 保持一致）
-        return next.atStartOfDay(ZoneId.of("UTC"))
-            .toInstant()
-            .toEpochMilli()
+        return EventDateUtils.toUtcMillis(next)
     }
 
     private fun nextDayBasedOccurrence(

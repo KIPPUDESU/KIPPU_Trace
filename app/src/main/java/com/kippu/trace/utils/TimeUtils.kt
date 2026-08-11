@@ -3,7 +3,6 @@ package com.kippu.trace.utils
 import android.content.Context
 import com.kippu.trace.R
 import java.time.Duration
-import java.time.Instant
 import java.time.LocalDate
 import java.time.Period
 import java.time.ZoneId
@@ -30,9 +29,7 @@ object TimeUtils {
         val systemZone = ZoneId.systemDefault()
         
         // 本地日期
-        val targetDate = Instant.ofEpochMilli(targetDateMillis)
-            .atZone(ZoneId.of("UTC"))
-            .toLocalDate()
+        val targetDate = EventDateUtils.fromStoredMillis(targetDateMillis)
         val today = LocalDate.now(systemZone)
         
         val start = if (today.isBefore(targetDate)) today else targetDate
@@ -72,9 +69,7 @@ object TimeUtils {
         val now = ZonedDateTime.now(systemZone)
         
         // 将 DatePicker 的 UTC 午夜视为本地午夜
-        val targetMidnight = Instant.ofEpochMilli(targetDateMillis)
-            .atZone(ZoneId.of("UTC"))
-            .toLocalDate()
+        val targetMidnight = EventDateUtils.fromStoredMillis(targetDateMillis)
             .atStartOfDay(systemZone)
             
         val duration = if (now.isBefore(targetMidnight)) {
