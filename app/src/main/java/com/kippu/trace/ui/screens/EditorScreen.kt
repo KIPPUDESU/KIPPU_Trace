@@ -27,7 +27,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -40,19 +39,21 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import com.kippu.trace.R
 import com.kippu.trace.model.DateEvent
 import com.kippu.trace.model.DisplayMode
+import com.kippu.trace.model.RepeatMode
+import com.kippu.trace.ui.components.DateConfigurationWizard
+import com.kippu.trace.ui.components.EventDateConfiguration
 import com.kippu.trace.ui.components.PinnedEventCard
 import com.kippu.trace.ui.theme.KIPPU_TraceTheme
 import com.kippu.trace.utils.FileUtils
+import com.kippu.trace.utils.EventDateUtils
 import com.kippu.trace.utils.TextUtils
-import java.time.Instant
+import com.kippu.trace.utils.buildTitleWithPrefixAnnotatedString
+import com.kippu.trace.utils.isRepeatConfigurationValid
 import java.time.LocalDate
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 
@@ -67,12 +68,23 @@ fun EditorScreen(
     // 使用新版 TextFieldState
     val titleState = rememberTextFieldState("")
     
-    var selectedDate by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var selectedDate by remember {
+        mutableLongStateOf(EventDateUtils.toUtcMillis(LocalDate.now()))
+    }
     var backgroundUri by remember { mutableStateOf<String?>(null) }
     var isPinned by remember { mutableStateOf(false) }
     var maskOpacity by remember { mutableFloatStateOf(0.4f) }
     val showDatePicker = remember { mutableStateOf(false) }
     var mode by remember { mutableStateOf(DisplayMode.COUNT_DOWN) }
+    // 倒数模式 - 重复
+    var repeatMode by remember { mutableStateOf(RepeatMode.NONE) }
+    var repeatCustomDays by remember { mutableIntStateOf(0) }
+    // 累计模式 - 纪念日
+    var customAnniversaryDays by remember { mutableIntStateOf(0) }
+    var anniversaryYearEnabled by remember { mutableStateOf(false) }
+    var anniversaryMonthEnabled by remember { mutableStateOf(false) }
+    var anniversaryWeekEnabled by remember { mutableStateOf(false) }
+    var anniversaryCombinedText by remember { mutableStateOf("") }
 
     val scrollState = rememberScrollState()
 
@@ -88,7 +100,7 @@ fun EditorScreen(
     }
 
     val targetLocalDate = remember(selectedDate) {
-        Instant.ofEpochMilli(selectedDate).atZone(ZoneId.systemDefault()).toLocalDate()
+        EventDateUtils.fromStoredMillis(selectedDate)
     }
     
     val days = remember(targetLocalDate) {
@@ -102,87 +114,41 @@ fun EditorScreen(
     }
     
     LaunchedEffect(selectedDate) {
-        mode = if (selectedDate > System.currentTimeMillis()) DisplayMode.COUNT_DOWN else DisplayMode.ACCUMULATE
+        mode = EventDateUtils.displayModeFor(selectedDate)
     }
 
     val untitledText = stringResource(R.string.untitled)
     val sampleTitleText = stringResource(R.string.sample_title)
+    val isRepeatValid = isRepeatConfigurationValid(mode, repeatMode, repeatCustomDays)
 
     if (showDatePicker.value) {
-        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = selectedDate)
-
-        Dialog(
-            onDismissRequest = { showDatePicker.value = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false)
-        ) {
-            Surface(
-                shape = RoundedCornerShape(28.dp),
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 0.dp,
-                modifier = Modifier
-                    // 手机上默认 320dp，在大屏（如 Pad）下最高可扩展至 480dp
-                    .widthIn(min = 320.dp, max = 480.dp)
-                    .fillMaxWidth(0.85f)
-                    .wrapContentHeight()
-            ) {
-                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                    val scope = this
-                    // 根据容器实际宽度计算缩放比例。360dp 是 DatePicker 完整显示所需的理想宽度。
-                    val scale = (scope.maxWidth / 360.dp).coerceIn(0.88f, 1.1f)
-                    
-                    Column(
-                        modifier = Modifier.padding(top = 20.dp, bottom = 16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = stringResource(R.string.select_date),
-                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                            modifier = Modifier
-                                .align(Alignment.Start)
-                                .padding(start = 20.dp, end = 20.dp, bottom = 8.dp)
-                        )
-
-                        Box(
-                            modifier = Modifier.fillMaxWidth(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            DatePicker(
-                                state = datePickerState,
-                                title = null,
-                                headline = null,
-                                showModeToggle = false,
-                                colors = DatePickerDefaults.colors(
-                                    containerColor = MaterialTheme.colorScheme.surface,
-                                    dividerColor = Color.Transparent
-                                ),
-                                modifier = Modifier
-                                    // 强制指定 DatePicker 宽度为 360dp 以防止其内部日期列丢失
-                                    .requiredWidth(360.dp)
-                                    // 缩放以适配外部 Surface 容器
-                                    .scale(scale)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                            horizontalArrangement = Arrangement.End
-                        ) {
-                            TextButton(onClick = { showDatePicker.value = false }) {
-                                Text(stringResource(R.string.cancel))
-                            }
-                            TextButton(onClick = {
-                                datePickerState.selectedDateMillis?.let { selectedDate = it }
-                                showDatePicker.value = false
-                            }) {
-                                Text(stringResource(R.string.confirm))
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        DateConfigurationWizard(
+            initialConfiguration = EventDateConfiguration(
+                targetDate = selectedDate,
+                mode = mode,
+                repeatMode = repeatMode,
+                repeatCustomDays = repeatCustomDays,
+                repeatAnchorDate = if (repeatMode == RepeatMode.NONE) null else selectedDate,
+                customAnniversaryDays = customAnniversaryDays,
+                anniversaryYearEnabled = anniversaryYearEnabled,
+                anniversaryMonthEnabled = anniversaryMonthEnabled,
+                anniversaryWeekEnabled = anniversaryWeekEnabled,
+                anniversaryCombinedText = anniversaryCombinedText,
+            ),
+            onConfirm = { configuration ->
+                selectedDate = configuration.targetDate
+                mode = configuration.mode
+                repeatMode = configuration.repeatMode
+                repeatCustomDays = configuration.repeatCustomDays
+                customAnniversaryDays = configuration.customAnniversaryDays
+                anniversaryYearEnabled = configuration.anniversaryYearEnabled
+                anniversaryMonthEnabled = configuration.anniversaryMonthEnabled
+                anniversaryWeekEnabled = configuration.anniversaryWeekEnabled
+                anniversaryCombinedText = configuration.anniversaryCombinedText
+                showDatePicker.value = false
+            },
+            onDismiss = { showDatePicker.value = false },
+        )
     }
 
     Scaffold(
@@ -195,17 +161,30 @@ fun EditorScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = {
-                        onSave(DateEvent(
-                            title = titleState.text.toString().ifEmpty { untitledText },
-                            targetDate = selectedDate,
-                            isFuture = mode == DisplayMode.COUNT_DOWN,
-                            mode = mode,
-                            isPinned = isPinned,
-                            backgroundUri = backgroundUri,
-                            maskOpacity = maskOpacity
-                        ))
-                    }) {
+                    IconButton(
+                        enabled = isRepeatValid,
+                        onClick = {
+                            onSave(DateEvent(
+                                title = titleState.text.toString().ifEmpty { untitledText },
+                                targetDate = selectedDate,
+                                isFuture = mode == DisplayMode.COUNT_DOWN,
+                                mode = mode,
+                                isPinned = isPinned,
+                                backgroundUri = backgroundUri,
+                                maskOpacity = maskOpacity,
+                                repeatMode = repeatMode,
+                                repeatCustomDays = repeatCustomDays,
+                                repeatAnchorDate = if (
+                                    mode == DisplayMode.COUNT_DOWN && repeatMode != RepeatMode.NONE
+                                ) selectedDate else null,
+                                customAnniversaryDays = customAnniversaryDays,
+                                anniversaryYearEnabled = anniversaryYearEnabled,
+                                anniversaryMonthEnabled = anniversaryMonthEnabled,
+                                anniversaryWeekEnabled = anniversaryWeekEnabled,
+                                anniversaryCombinedText = anniversaryCombinedText,
+                            ))
+                        }
+                    ) {
                         Icon(painter = rememberVectorPainter(Icons.Default.Check), contentDescription = "Save", tint = MaterialTheme.colorScheme.primary)
                     }
                 }
@@ -501,23 +480,7 @@ fun FullScreenPreviewContent(title: String, days: String, imageUri: String?, opa
             
             // 构造每9字换行且前缀紧跟末尾的标题（同步 DetailScreen 逻辑）
             val annotatedTitle = remember(title, prefix) {
-                val displayTitle = if (title.length > 35) {
-                    title.take(32) + "..."
-                } else {
-                    title
-                }
-                
-                androidx.compose.ui.text.buildAnnotatedString {
-                    val chunks = displayTitle.chunked(9)
-                    chunks.forEachIndexed { index, chunk ->
-                        append(chunk)
-                        if (index < chunks.size - 1) append("\n")
-                    }
-                    append(" ")
-                    pushStyle(androidx.compose.ui.text.SpanStyle(color = Color.White.copy(alpha = 0.7f)))
-                    append(prefix)
-                    pop()
-                }
+                buildTitleWithPrefixAnnotatedString(title, prefix)
             }
 
             Text(

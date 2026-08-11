@@ -11,6 +11,7 @@
     <string name="close">关闭</string>
     <string name="confirm">确定</string>
     <string name="cancel">取消</string>
+    <string name="next">下一步</string>
     <string name="follow_system">跟随系统</string>
     <string name="light_mode">浅色模式</string>
     <string name="dark_mode">深色模式</string>
@@ -91,4 +92,30 @@
     <string name="restore_failed">恢复失败: %s</string>
     <string name="unknown_error">未知错误</string>
     <string name="select_date">选择日期</string>
+    <!-- 纪念日 / 重复事件 -->
+    <string name="anniversary_section">纪念日设置</string>
+    <string name="anniversary_custom_label">自定义纪念日</string>
+    <string name="anniversary_custom_unit">天/次</string>
+    <string name="anniversary_year">年纪念日</string>
+    <string name="anniversary_month">月纪念日</string>
+    <string name="anniversary_week">周纪念日</string>
+    <string name="anniversary_combined_hint">同时触发时的文案（可选）</string>
+    <string name="repeat_section">自动重置</string>
+    <string name="repeat_none">不重复</string>
+    <string name="repeat_yearly">每年</string>
+    <string name="repeat_monthly">每月</string>
+    <string name="repeat_weekly">每周</string>
+    <string name="repeat_custom">自定义</string>
+    <string name="repeat_custom_unit">天</string>
+    <string name="anniversary_custom_text">到今天已 %1$d 个 %2$d 天</string>
+    <plurals name="anniversary_year_text">
+        <item quantity="other">到今天满 %d 年</item>
+    </plurals>
+    <plurals name="anniversary_month_text">
+        <item quantity="other">到今天满 %d 个月</item>
+    </plurals>
+    <string name="anniversary_indicator">纪念日</string>
+    <plurals name="anniversary_week_text">
+        <item quantity="other">到今天满 %d 周</item>
+    </plurals>
 </resources>

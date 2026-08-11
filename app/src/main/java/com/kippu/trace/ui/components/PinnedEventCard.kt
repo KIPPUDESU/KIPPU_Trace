@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineBreak
@@ -29,13 +30,13 @@ import coil.compose.AsyncImage
 import com.kippu.trace.R
 import com.kippu.trace.model.DateEvent
 import com.kippu.trace.model.DisplayMode
+import com.kippu.trace.ui.theme.AnniversaryGoldOnDark
+import com.kippu.trace.utils.AnniversaryUtils
+import com.kippu.trace.utils.EventDateUtils
 import com.kippu.trace.utils.TextUtils
 import com.kippu.trace.utils.fadeRightEdge
 import com.kippu.trace.utils.fadeLastLineEdge
 import com.kippu.trace.utils.getLastLineHeightFraction
-import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 
 @Composable
@@ -44,11 +45,16 @@ fun PinnedEventCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val targetLocalDate = Instant.ofEpochMilli(event.targetDate)
-        .atZone(ZoneId.systemDefault())
-        .toLocalDate()
-    val today = LocalDate.now()
+    val targetLocalDate = EventDateUtils.fromStoredMillis(event.targetDate)
+    val today = rememberCurrentDate()
     val days = ChronoUnit.DAYS.between(today, targetLocalDate).let { if (it < 0) -it else it }
+
+    val anniversary = AnniversaryUtils.checkAllAnniversaries(event, today)
+    val anniversaryText = if (anniversary.isTriggered) {
+        anniversary.displayText(LocalContext.current.resources)
+    } else {
+        null
+    }
 
     Card(
         onClick = onClick,
@@ -149,10 +155,10 @@ fun PinnedEventCard(
                                 )
                             }
                             Text(
-                                text = targetLocalDate.toString(),
+                                text = anniversaryText ?: targetLocalDate.toString(),
                                 style = MaterialTheme.typography.labelSmall.copy(
-                                    color = Color.White.copy(alpha = 0.7f),
-                                    fontWeight = FontWeight.Normal
+                                    color = if (anniversary.isTriggered) AnniversaryGoldOnDark else Color.White.copy(alpha = 0.7f),
+                                    fontWeight = if (anniversary.isTriggered) FontWeight.Bold else FontWeight.Normal
                                 )
                             )
                         }
@@ -204,10 +210,10 @@ fun PinnedEventCard(
                             }
 
                             Text(
-                                text = targetLocalDate.toString(),
+                                text = anniversaryText ?: targetLocalDate.toString(),
                                 style = MaterialTheme.typography.labelSmall.copy(
-                                    color = Color.White.copy(alpha = 0.7f),
-                                    fontWeight = FontWeight.Normal
+                                    color = if (anniversary.isTriggered) AnniversaryGoldOnDark else Color.White.copy(alpha = 0.7f),
+                                    fontWeight = if (anniversary.isTriggered) FontWeight.Bold else FontWeight.Normal
                                 ),
                                 modifier = Modifier.offset(y = (-4).dp)
                             )
@@ -236,10 +242,10 @@ fun PinnedEventCard(
                                     )
                                 )
                                 Text(
-                                    text = targetLocalDate.toString(),
+                                    text = anniversaryText ?: targetLocalDate.toString(),
                                     style = MaterialTheme.typography.labelMedium.copy(
-                                        color = Color.White.copy(alpha = 0.8f),
-                                        fontWeight = FontWeight.Normal
+                                        color = if (anniversary.isTriggered) AnniversaryGoldOnDark else Color.White.copy(alpha = 0.8f),
+                                        fontWeight = if (anniversary.isTriggered) FontWeight.Bold else FontWeight.Normal
                                     )
                                 )
                             }

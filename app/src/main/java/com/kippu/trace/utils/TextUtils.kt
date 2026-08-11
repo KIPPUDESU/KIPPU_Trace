@@ -1,7 +1,5 @@
 package com.kippu.trace.utils
 
-import kotlin.math.ceil
-
 object TextUtils {
     //计算视觉宽度 中文一倍 英文数字符号则为 0.5
     fun getVisualWidth(text: String): Float {

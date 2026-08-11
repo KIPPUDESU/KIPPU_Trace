@@ -11,6 +11,7 @@
     <string name="close">Close</string>
     <string name="confirm">Confirm</string>
     <string name="cancel">Cancel</string>
+    <string name="next">Next</string>
     <string name="follow_system">System</string>
     <string name="light_mode">Light</string>
     <string name="dark_mode">Dark</string>
@@ -91,4 +92,33 @@
     <string name="restore_failed">Restore failed: %s</string>
     <string name="unknown_error">Unknown error</string>
     <string name="select_date">Select Date</string>
+    <!-- Anniversary / Repeat -->
+    <string name="anniversary_section">Anniversary</string>
+    <string name="anniversary_custom_label">Custom Anniversary</string>
+    <string name="anniversary_custom_unit">days</string>
+    <string name="anniversary_year">Year Anniversary</string>
+    <string name="anniversary_month">Month Anniversary</string>
+    <string name="anniversary_week">Week Anniversary</string>
+    <string name="anniversary_combined_hint">Custom text when multiple trigger (optional)</string>
+    <string name="repeat_section">Auto Reset</string>
+    <string name="repeat_none">Never</string>
+    <string name="repeat_yearly">Yearly</string>
+    <string name="repeat_monthly">Monthly</string>
+    <string name="repeat_weekly">Weekly</string>
+    <string name="repeat_custom">Custom</string>
+    <string name="repeat_custom_unit">days</string>
+    <string name="anniversary_custom_text">%1$d × %2$d days today</string>
+    <plurals name="anniversary_year_text">
+        <item quantity="one">%d year today</item>
+        <item quantity="other">%d years today</item>
+    </plurals>
+    <plurals name="anniversary_month_text">
+        <item quantity="one">%d month today</item>
+        <item quantity="other">%d months today</item>
+    </plurals>
+    <string name="anniversary_indicator">Anniversary</string>
+    <plurals name="anniversary_week_text">
+        <item quantity="one">%d week today</item>
+        <item quantity="other">%d weeks today</item>
+    </plurals>
 </resources>

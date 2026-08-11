@@ -26,6 +26,20 @@ class EventRepository(private val eventDao: EventDao) {
         eventDao.updateEvents(events)
     }
 
+    suspend fun advanceCountdownIfUnchanged(
+        event: DateEvent,
+        newTargetDate: Long,
+        newAnchorDate: Long,
+    ): Boolean = eventDao.advanceCountdownIfUnchanged(
+        id = event.id,
+        expectedTargetDate = event.targetDate,
+        expectedRepeatMode = event.repeatMode,
+        expectedCustomDays = event.repeatCustomDays,
+        expectedAnchorDate = event.repeatAnchorDate,
+        newTargetDate = newTargetDate,
+        newAnchorDate = newAnchorDate,
+    ) == 1
+
     suspend fun deleteAllAndInsertAll(events: List<DateEvent>) {
         eventDao.deleteAllAndInsertAll(events)
     }

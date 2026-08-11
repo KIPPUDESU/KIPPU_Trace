@@ -2,7 +2,10 @@ package com.kippu.trace.data
 
 import android.content.Context
 import androidx.room.*
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.kippu.trace.model.DateEvent
+import com.kippu.trace.model.RepeatMode
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -25,6 +28,33 @@ interface EventDao {
     @Update
     suspend fun updateEvents(events: List<DateEvent>)
 
+    @Query(
+        """
+        UPDATE date_events
+        SET targetDate = :newTargetDate,
+            isFuture = 1,
+            repeatAnchorDate = :newAnchorDate
+        WHERE id = :id
+          AND mode = 'COUNT_DOWN'
+          AND targetDate = :expectedTargetDate
+          AND repeatMode = :expectedRepeatMode
+          AND repeatCustomDays = :expectedCustomDays
+          AND (
+              (repeatAnchorDate IS NULL AND :expectedAnchorDate IS NULL)
+              OR repeatAnchorDate = :expectedAnchorDate
+          )
+        """
+    )
+    suspend fun advanceCountdownIfUnchanged(
+        id: Long,
+        expectedTargetDate: Long,
+        expectedRepeatMode: RepeatMode,
+        expectedCustomDays: Int,
+        expectedAnchorDate: Long?,
+        newTargetDate: Long,
+        newAnchorDate: Long,
+    ): Int
+
     @Query("DELETE FROM date_events")
     suspend fun deleteAll()
 
@@ -38,7 +68,7 @@ interface EventDao {
     }
 }
 
-@Database(entities = [DateEvent::class], version = 2, exportSchema = false)
+@Database(entities = [DateEvent::class], version = 3, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun eventDao(): EventDao
@@ -47,6 +77,35 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE `date_events` ADD COLUMN `repeatMode` TEXT NOT NULL DEFAULT 'NONE'"
+                )
+                db.execSQL(
+                    "ALTER TABLE `date_events` ADD COLUMN `repeatCustomDays` INTEGER NOT NULL DEFAULT 0"
+                )
+                db.execSQL(
+                    "ALTER TABLE `date_events` ADD COLUMN `repeatAnchorDate` INTEGER"
+                )
+                db.execSQL(
+                    "ALTER TABLE `date_events` ADD COLUMN `customAnniversaryDays` INTEGER NOT NULL DEFAULT 0"
+                )
+                db.execSQL(
+                    "ALTER TABLE `date_events` ADD COLUMN `anniversaryYearEnabled` INTEGER NOT NULL DEFAULT 0"
+                )
+                db.execSQL(
+                    "ALTER TABLE `date_events` ADD COLUMN `anniversaryMonthEnabled` INTEGER NOT NULL DEFAULT 0"
+                )
+                db.execSQL(
+                    "ALTER TABLE `date_events` ADD COLUMN `anniversaryWeekEnabled` INTEGER NOT NULL DEFAULT 0"
+                )
+                db.execSQL(
+                    "ALTER TABLE `date_events` ADD COLUMN `anniversaryCombinedText` TEXT NOT NULL DEFAULT ''"
+                )
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -54,7 +113,8 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "trace_database",
                 )
-                .fallbackToDestructiveMigration()
+                .addMigrations(MIGRATION_2_3)
+                .fallbackToDestructiveMigrationFrom(1)
                 .build()
                 INSTANCE = instance
                 instance

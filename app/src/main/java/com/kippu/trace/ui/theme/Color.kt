@@ -31,3 +31,7 @@ val GlassWhite = Color(0xCCFFFFFF)
 val GlassBlack = Color(0x66000000)
 
 val AccentColor = Color(0xFF007AFF)
+
+// 纪念日
+val AnniversaryGold = Color(0xFFB8860B)          // 浅色表面用
+val AnniversaryGoldOnDark = Color(0xFFFFD54F)    // 深色/黑色表面用

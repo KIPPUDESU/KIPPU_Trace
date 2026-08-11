@@ -11,6 +11,7 @@
     <string name="close">閉じる</string>
     <string name="confirm">確認</string>
     <string name="cancel">キャンセル</string>
+    <string name="next">次へ</string>
     <string name="follow_system">システム</string>
     <string name="light_mode">ライト</string>
     <string name="dark_mode">ダーク</string>
@@ -91,4 +92,30 @@
     <string name="restore_failed">復元に失敗しました: %s</string>
     <string name="unknown_error">不明なエラー</string>
     <string name="select_date">日付を選択</string>
+    <!-- 記念日 / リピート -->
+    <string name="anniversary_section">記念日設定</string>
+    <string name="anniversary_custom_label">カスタム記念日</string>
+    <string name="anniversary_custom_unit">日ごと</string>
+    <string name="anniversary_year">年記念日</string>
+    <string name="anniversary_month">月記念日</string>
+    <string name="anniversary_week">週記念日</string>
+    <string name="anniversary_combined_hint">同時発生時のカスタムテキスト（任意）</string>
+    <string name="repeat_section">自動リセット</string>
+    <string name="repeat_none">繰り返さない</string>
+    <string name="repeat_yearly">毎年</string>
+    <string name="repeat_monthly">毎月</string>
+    <string name="repeat_weekly">毎週</string>
+    <string name="repeat_custom">カスタム</string>
+    <string name="repeat_custom_unit">日</string>
+    <string name="anniversary_custom_text">今日で %1$d × %2$d 日</string>
+    <plurals name="anniversary_year_text">
+        <item quantity="other">今日で %d 年</item>
+    </plurals>
+    <plurals name="anniversary_month_text">
+        <item quantity="other">今日で %d ヶ月</item>
+    </plurals>
+    <string name="anniversary_indicator">記念日</string>
+    <plurals name="anniversary_week_text">
+        <item quantity="other">今日で %d 週間</item>
+    </plurals>
 </resources>

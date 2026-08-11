@@ -8,6 +8,9 @@ import androidx.lifecycle.viewModelScope
 import com.kippu.trace.data.AppDatabase
 import com.kippu.trace.data.EventRepository
 import com.kippu.trace.model.DateEvent
+import com.kippu.trace.model.DisplayMode
+import com.kippu.trace.model.RepeatMode
+import com.kippu.trace.utils.AnniversaryUtils
 import com.kippu.trace.utils.BackupManager
 import com.kippu.trace.widget.TraceWidgetUpdater
 import kotlinx.coroutines.Dispatchers
@@ -16,10 +19,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.concurrent.atomic.AtomicBoolean
 
 class EventViewModel(application: Application) : AndroidViewModel(application) {
     private val repository: EventRepository
     val allEvents: StateFlow<List<DateEvent>>
+
+    private val advancing = AtomicBoolean(false)
 
     init {
         val eventDao = AppDatabase.getDatabase(application).eventDao()
@@ -29,11 +35,60 @@ class EventViewModel(application: Application) : AndroidViewModel(application) {
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList(),
         )
+        checkAndAdvanceCountdowns()
+    }
+
+    /** 检查所有倒数模式事件，若目标日期已过则按重复规则推进 */
+    fun checkAndAdvanceCountdowns() {
+        if (!advancing.compareAndSet(false, true)) return
+        viewModelScope.launch {
+            try {
+                val updatedCount = withContext(Dispatchers.IO) {
+                    var count = 0
+                    for (event in repository.getAllEventsOnce()) {
+                        if (event.mode != DisplayMode.COUNT_DOWN || event.repeatMode == RepeatMode.NONE) {
+                            continue
+                        }
+
+                        val repeatAnchor = event.repeatAnchorDate ?: event.targetDate
+                        val newTarget = AnniversaryUtils.advanceTargetDate(
+                            event.targetDate,
+                            repeatAnchor,
+                            event.repeatMode,
+                            event.repeatCustomDays,
+                        ) ?: continue
+
+                        if (
+                            repository.advanceCountdownIfUnchanged(
+                                event = event,
+                                newTargetDate = newTarget,
+                                newAnchorDate = repeatAnchor,
+                            )
+                        ) {
+                            count += 1
+                        }
+                    }
+                    count
+                }
+                if (updatedCount > 0) {
+                    TraceWidgetUpdater.requestAllUpdate(getApplication())
+                }
+            } finally {
+                advancing.set(false)
+            }
+        }
     }
 
     fun addEvent(event: DateEvent) {
         viewModelScope.launch {
-            repository.insert(event)
+            val eventWithAnchor = if (
+                event.repeatMode != RepeatMode.NONE && event.repeatAnchorDate == null
+            ) {
+                event.copy(repeatAnchorDate = event.targetDate)
+            } else {
+                event
+            }
+            repository.insert(eventWithAnchor)
             TraceWidgetUpdater.requestAllUpdate(getApplication())
         }
     }
