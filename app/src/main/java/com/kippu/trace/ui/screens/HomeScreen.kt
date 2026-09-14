@@ -52,6 +52,8 @@ import com.kippu.trace.R
 import com.kippu.trace.model.DateEvent
 import com.kippu.trace.model.DisplayMode
 import com.kippu.trace.utils.FileUtils
+import com.kippu.trace.utils.TimeUtils
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.kippu.trace.ui.components.NormalEventCard
 import com.kippu.trace.ui.components.PinnedEventCard
@@ -76,7 +78,9 @@ fun HomeScreen(
 
     var eventToDelete by remember { mutableStateOf<DateEvent?>(null) }
     var editingEvent by remember { mutableStateOf<DateEvent?>(null) }
-    val editSheetState = rememberModalBottomSheetState()
+    val editSheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true //二次编辑全屏展开，避免修改完后没看到下方缩着的确定键
+    )
 
     val editImagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -90,6 +94,19 @@ fun HomeScreen(
     }
 
     val lazyListState = rememberLazyListState()
+
+    // 各事件可能有各自的 日期变更时间 ：等到下一个最早的切换点再刷新一次，未到点不重组。
+    var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(events.map { it.dayChangeMinutes }) {
+        if (events.isEmpty()) return@LaunchedEffect
+        nowMillis = System.currentTimeMillis()
+        while (true) {
+            val now = System.currentTimeMillis()
+            val next = events.minOf { TimeUtils.nextRolloverMillis(now, it.dayChangeMinutes) }
+            delay((next - now).coerceAtLeast(0L) + 50)
+            nowMillis = System.currentTimeMillis()
+        }
+    }
 
     if (eventToDelete != null) {
         AlertDialog(
@@ -155,7 +172,7 @@ fun HomeScreen(
                                 onEditClick = { editingEvent = event }
                             ) {
                                 // 编辑中的卡片直接读取 editingEvent 实时预览改动
-                                PinnedEventCard(event = if (editingEvent?.id == event.id) editingEvent!! else event, onClick = { onEventClick(event) })
+                                PinnedEventCard(event = if (editingEvent?.id == event.id) editingEvent!! else event, onClick = { onEventClick(event) }, nowMillis = nowMillis)
                             }
                         }
 
@@ -167,7 +184,7 @@ fun HomeScreen(
                                 onTrashClick = { eventToDelete = event },
                                 onEditClick = { editingEvent = event }
                             ) {
-                                NormalEventCard(event = if (editingEvent?.id == event.id) editingEvent!! else event, onClick = { onEventClick(event) })
+                                NormalEventCard(event = if (editingEvent?.id == event.id) editingEvent!! else event, onClick = { onEventClick(event) }, nowMillis = nowMillis)
                             }
                         }
                     }
@@ -191,9 +208,9 @@ fun HomeScreen(
                                 onEditClick = { editingEvent = event }
                             ) {
                                 if (event.isPinned) {
-                                    PinnedEventCard(event = if (editingEvent?.id == event.id) editingEvent!! else event, onClick = { onEventClick(event) })
+                                    PinnedEventCard(event = if (editingEvent?.id == event.id) editingEvent!! else event, onClick = { onEventClick(event) }, nowMillis = nowMillis)
                                 } else {
-                                    NormalEventCard(event = if (editingEvent?.id == event.id) editingEvent!! else event, onClick = { onEventClick(event) })
+                                    NormalEventCard(event = if (editingEvent?.id == event.id) editingEvent!! else event, onClick = { onEventClick(event) }, nowMillis = nowMillis)
                                 }
                             }
                         }
@@ -221,6 +238,7 @@ fun HomeScreen(
                 }
         }
         val showEditDatePicker = remember { mutableStateOf(false) }
+        val showDayChangeDialog = remember { mutableStateOf(false) }
 
         if (showEditDatePicker.value) {
             EditDatePickerDialog(
@@ -233,6 +251,17 @@ fun HomeScreen(
                     showEditDatePicker.value = false
                 },
                 onDismiss = { showEditDatePicker.value = false }
+            )
+        }
+
+        if (showDayChangeDialog.value) {
+            DayChangeTimeDialog(
+                initialMinutes = event.dayChangeMinutes,
+                onConfirm = { minutes ->
+                    editingEvent = editingEvent?.copy(dayChangeMinutes = minutes)
+                    showDayChangeDialog.value = false
+                },
+                onDismiss = { showDayChangeDialog.value = false },
             )
         }
 
@@ -320,6 +349,36 @@ fun HomeScreen(
                                 )
                             }
                         }
+                    }
+                }
+
+                Card(
+                    onClick = { showDayChangeDialog.value = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(28.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.03f))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = stringResource(R.string.day_change_time),
+                            style = MaterialTheme.typography.labelLarge, 
+                            fontWeight = FontWeight.Bold,                
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(start = 15.dp)
+                        )
+                        Text(
+                            text = TimeUtils.formatMinutesOfDay(event.dayChangeMinutes),
+                            style = MaterialTheme.typography.labelLarge, 
+                            fontWeight = FontWeight.Bold,               
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(end = 40.dp)
+                        )
                     }
                 }
 

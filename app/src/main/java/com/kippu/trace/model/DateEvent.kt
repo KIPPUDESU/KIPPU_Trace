@@ -20,5 +20,6 @@ data class DateEvent(
     val backgroundUri: String? = null,
     val isPinned: Boolean = false,
     val maskOpacity: Float = 0.3f,
+    val dayChangeMinutes: Int = 0,   // 每事件的「日期变更时间」（自 0 点起算的分钟数）
     val position: Int = 0
 )

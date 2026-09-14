@@ -62,9 +62,7 @@ import com.kippu.trace.utils.TimeUtils
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.Instant
-import java.time.LocalDate
 import java.time.ZoneId
-import java.time.temporal.ChronoUnit
 import java.util.Locale
 import kotlin.math.abs
 
@@ -599,8 +597,10 @@ fun EventDetailItem(
 ) {
     val context = LocalContext.current
     val graphicsLayer = rememberGraphicsLayer()
+    val rolloverMinutes = event.dayChangeMinutes
     val targetLocalDate = Instant.ofEpochMilli(event.targetDate).atZone(ZoneId.systemDefault()).toLocalDate()
-    val days = ChronoUnit.DAYS.between(LocalDate.now(), targetLocalDate).let { if (it < 0) -it else it }
+    val today = TimeUtils.getEffectiveToday(rolloverMinutes = rolloverMinutes)
+    val days = TimeUtils.getDayCount(today, targetLocalDate)
 
     val animatedDays = remember { Animatable(0f) }
     var detailedTime by remember { mutableStateOf(TimeUtils.getDetailedTime(event.targetDate)) }

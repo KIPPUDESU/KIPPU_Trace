@@ -124,6 +124,7 @@ object BackupManager {
             }
             put("isPinned", isPinned)
             put("maskOpacity", maskOpacity.toDouble())
+            put("dayChangeMinutes", dayChangeMinutes)
         }
     }
 
@@ -140,6 +141,7 @@ object BackupManager {
             } else null,
             isPinned = optBoolean("isPinned", false),
             maskOpacity = optDouble("maskOpacity", 0.3).toFloat(),
+            dayChangeMinutes = optInt("dayChangeMinutes", 0),
         )
     }
 }

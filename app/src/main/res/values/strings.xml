@@ -6,6 +6,8 @@
     <string name="section_about">关于</string>
     <string name="theme_mode">日夜模式</string>
     <string name="language_selection">语言选择</string>
+    <string name="day_change_time">日期变更时间</string>
+    <string name="reset_to_default">恢复默认</string>
     <string name="backup_restore">数据备份与恢复</string>
     <string name="about_app">关于时痕</string>
     <string name="close">关闭</string>

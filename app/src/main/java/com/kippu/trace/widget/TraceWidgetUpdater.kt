@@ -1,11 +1,13 @@
 package com.kippu.trace.widget
 
+import android.app.AlarmManager
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
+import android.os.Build
 import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
@@ -16,11 +18,10 @@ import com.kippu.trace.model.DateEvent
 import com.kippu.trace.utils.LanguageMode
 import com.kippu.trace.utils.LanguagePreferences
 import com.kippu.trace.utils.TextUtils
+import com.kippu.trace.utils.TimeUtils
 import java.time.Instant
-import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.time.temporal.ChronoUnit
 import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -34,6 +35,59 @@ object TraceWidgetUpdater {
     private const val PREF_PREFIX_KEY = "appwidget_"
     private val updateScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
+
+    const val ACTION_ROLLOVER = "com.kippu.trace.action.DAY_ROLLOVER"
+    private const val ROLLOVER_REQUEST_CODE = 1001
+
+    // 依据绑定事件的 日期变更时间 安排下一次精确唤醒，用于刷新小组件
+    fun scheduleDayRollover(context: Context) {
+        val appContext = context.applicationContext
+        updateScope.launch {
+            val alarmManager = appContext.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return@launch
+
+            val minutes = collectBoundDayChangeMinutes(appContext).ifEmpty { listOf(0) }
+            val now = System.currentTimeMillis()
+            val triggerMillis = minutes.minOf { TimeUtils.nextRolloverMillis(now, it) }
+
+            val intent = Intent(appContext, DayRolloverReceiver::class.java).setAction(ACTION_ROLLOVER)
+            val pendingIntent = PendingIntent.getBroadcast(
+                appContext,
+                ROLLOVER_REQUEST_CODE,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+
+            val canScheduleExact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+                alarmManager.canScheduleExactAlarms()
+
+            if (canScheduleExact) {
+                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerMillis, pendingIntent)
+            } else {
+                alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerMillis, pendingIntent)
+            }
+        }
+    }
+
+    // 收集所有已绑定小组件事件的 日期变更时间
+    private suspend fun collectBoundDayChangeMinutes(context: Context): List<Int> {
+        val manager = AppWidgetManager.getInstance(context)
+        val providers = listOf(
+            TraceWidget2x2Provider::class.java,
+            TraceWidget3x2Provider::class.java,
+            TraceWidget4x2Provider::class.java,
+        )
+        val dao = AppDatabase.getDatabase(context).eventDao()
+        val minutes = mutableListOf<Int>()
+        for (provider in providers) {
+            for (id in manager.getAppWidgetIds(ComponentName(context, provider))) {
+                val eventId = getWidgetEventId(context, id)
+                if (eventId != -1L) {
+                    dao.getEventById(eventId)?.let { minutes.add(it.dayChangeMinutes) }
+                }
+            }
+        }
+        return minutes
+    }
 
     // 保存小组件绑定的事件ID
     fun saveWidgetEventId(context: Context, appWidgetId: Int, eventId: Long) {
@@ -163,7 +217,7 @@ object TraceWidgetUpdater {
             views.setViewVisibility(R.id.widget_day_unit, View.VISIBLE)
 
             val dateText = formatTargetDate(event.targetDate)
-            val days = calculateDays(event.targetDate).toString()
+            val days = calculateDays(event.dayChangeMinutes, event.targetDate).toString()
             val localizedCtx = getLocalizedContext(context)
             val prefix = localizedCtx.getString(if (event.isFuture) R.string.label_until else R.string.label_since)
 
@@ -256,12 +310,12 @@ object TraceWidgetUpdater {
         )
     }
 
-    private fun calculateDays(targetDateMillis: Long): Long {
+    private fun calculateDays(dayChangeMinutes: Int, targetDateMillis: Long): Long {
         val targetLocalDate = Instant.ofEpochMilli(targetDateMillis)
             .atZone(ZoneId.systemDefault())
             .toLocalDate()
-        val today = LocalDate.now()
-        return ChronoUnit.DAYS.between(today, targetLocalDate).let { if (it < 0) -it else it }
+        val today = TimeUtils.getEffectiveToday(rolloverMinutes = dayChangeMinutes)
+        return TimeUtils.getDayCount(today, targetLocalDate)
     }
 
     private fun formatTargetDate(targetDateMillis: Long): String {

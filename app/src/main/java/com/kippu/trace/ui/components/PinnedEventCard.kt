@@ -30,25 +30,27 @@ import com.kippu.trace.R
 import com.kippu.trace.model.DateEvent
 import com.kippu.trace.model.DisplayMode
 import com.kippu.trace.utils.TextUtils
+import com.kippu.trace.utils.TimeUtils
 import com.kippu.trace.utils.fadeRightEdge
 import com.kippu.trace.utils.fadeLastLineEdge
 import com.kippu.trace.utils.getLastLineHeightFraction
 import java.time.Instant
-import java.time.LocalDate
 import java.time.ZoneId
-import java.time.temporal.ChronoUnit
 
 @Composable
 fun PinnedEventCard(
     event: DateEvent,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    nowMillis: Long = System.currentTimeMillis(),
 ) {
+    val rolloverMinutes = event.dayChangeMinutes
+
     val targetLocalDate = Instant.ofEpochMilli(event.targetDate)
         .atZone(ZoneId.systemDefault())
         .toLocalDate()
-    val today = LocalDate.now()
-    val days = ChronoUnit.DAYS.between(today, targetLocalDate).let { if (it < 0) -it else it }
+    val today = TimeUtils.getEffectiveToday(nowMillis, rolloverMinutes)
+    val days = TimeUtils.getDayCount(today, targetLocalDate)
 
     Card(
         onClick = onClick,

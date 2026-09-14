@@ -114,6 +114,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
+        // 调度自定义日期变更时间的闹钟（幂等，重复调用只会刷新到下一个触发点）
+        TraceWidgetUpdater.scheduleDayRollover(this)
+
         // 启动时的第一次硬性同步
         val initialMode = ThemePreferences.getThemeMode(this)
         val isInitialDark = when (initialMode) {

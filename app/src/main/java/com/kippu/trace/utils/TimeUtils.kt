@@ -8,6 +8,9 @@ import java.time.LocalDate
 import java.time.Period
 import java.time.ZoneId
 import java.time.ZonedDateTime
+import java.time.temporal.ChronoUnit
+import java.util.Locale
+import kotlin.math.abs
 
 data class RelativeTimeResult(
     val years: Int = 0,
@@ -26,14 +29,55 @@ object TimeUtils {
 
     // 正确处理时区
 
-    fun getRelativeTime(targetDateMillis: Long): RelativeTimeResult {
+    /**
+     * 依据 日期变更时间 计算当前所属的天。
+     * 若切换时间设为 T 分钟（相对 0 点），则 `now - T` 再取本地日期，
+     * rolloverMinutes = 0 时退化为 LocalDate.now()。
+     */
+    fun getEffectiveToday(
+        nowMillis: Long = System.currentTimeMillis(),
+        rolloverMinutes: Int = 0,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): LocalDate {
+        return Instant.ofEpochMilli(nowMillis)
+            .atZone(zone)
+            .minusMinutes(rolloverMinutes.toLong())
+            .toLocalDate()
+    }
+
+    // 两个日历日之间相差的天数
+    fun getDayCount(today: LocalDate, targetDate: LocalDate): Long {
+        return abs(ChronoUnit.DAYS.between(today, targetDate))
+    }
+
+    // 返回严格晚于 nowMillis 的下一个 日期变更时间 时间戳
+    fun nextRolloverMillis(
+        nowMillis: Long = System.currentTimeMillis(),
+        rolloverMinutes: Int = 0,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): Long {
+        val now = Instant.ofEpochMilli(nowMillis).atZone(zone)
+        var trigger = now.toLocalDate()
+            .atTime(rolloverMinutes / 60, rolloverMinutes % 60)
+            .atZone(zone)
+        if (!trigger.isAfter(now)) {
+            trigger = trigger.plusDays(1)
+        }
+        return trigger.toInstant().toEpochMilli()
+    }
+
+    fun getRelativeTime(
+        targetDateMillis: Long,
+        nowMillis: Long = System.currentTimeMillis(),
+        rolloverMinutes: Int = 0,
+    ): RelativeTimeResult {
         val systemZone = ZoneId.systemDefault()
         
         // 本地日期
         val targetDate = Instant.ofEpochMilli(targetDateMillis)
             .atZone(ZoneId.of("UTC"))
             .toLocalDate()
-        val today = LocalDate.now(systemZone)
+        val today = getEffectiveToday(nowMillis, rolloverMinutes, systemZone)
         
         val start = if (today.isBefore(targetDate)) today else targetDate
         val end = if (today.isBefore(targetDate)) targetDate else today
@@ -89,5 +133,11 @@ object TimeUtils {
         val seconds = totalSeconds % 60
         
         return DetailedTimeResult(hours, minutes, seconds)
+    }
+
+    // 将 自 0 点起算的分钟数 格式化为 HH:mm
+    fun formatMinutesOfDay(minutes: Int): String {
+        val safe = minutes.coerceIn(0, 1439)
+        return String.format(Locale.getDefault(), "%02d:%02d", safe / 60, safe % 60)
     }
 }

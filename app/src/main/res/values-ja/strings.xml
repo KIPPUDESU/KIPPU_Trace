@@ -6,6 +6,8 @@
     <string name="section_about">このアプリについて</string>
     <string name="theme_mode">テーマ</string>
     <string name="language_selection">表示言語</string>
+    <string name="day_change_time">日付変更の時刻</string>
+    <string name="reset_to_default">デフォルトに戻す</string>
     <string name="backup_restore">バックアップと復元</string>
     <string name="about_app">TimeTrace について</string>
     <string name="close">閉じる</string>

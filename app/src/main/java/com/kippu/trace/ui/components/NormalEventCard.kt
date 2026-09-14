@@ -20,24 +20,25 @@ import com.kippu.trace.utils.TextUtils
 import com.kippu.trace.utils.TimeUtils
 import com.kippu.trace.utils.fadeRightEdge
 import java.time.Instant
-import java.time.LocalDate
 import java.time.ZoneId
-import java.time.temporal.ChronoUnit
 
 @Composable
 fun NormalEventCard(
     event: DateEvent,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    nowMillis: Long = System.currentTimeMillis(),
 ) {
+    val context = LocalContext.current
+    val rolloverMinutes = event.dayChangeMinutes
+
     val targetLocalDate = Instant.ofEpochMilli(event.targetDate)
         .atZone(ZoneId.systemDefault())
         .toLocalDate()
-    val today = LocalDate.now()
-    val daysTotal = ChronoUnit.DAYS.between(today, targetLocalDate).let { if (it < 0) -it else it }
+    val today = TimeUtils.getEffectiveToday(nowMillis, rolloverMinutes)
+    val daysTotal = TimeUtils.getDayCount(today, targetLocalDate)
     
-    val context = LocalContext.current
-    val relativeTime = TimeUtils.getRelativeTime(event.targetDate)
+    val relativeTime = TimeUtils.getRelativeTime(event.targetDate, nowMillis, rolloverMinutes)
     val timeDescription = TimeUtils.formatRelativeTime(context, relativeTime)
     
     // 语义前缀

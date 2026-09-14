@@ -50,11 +50,10 @@ import com.kippu.trace.ui.components.PinnedEventCard
 import com.kippu.trace.ui.theme.KIPPU_TraceTheme
 import com.kippu.trace.utils.FileUtils
 import com.kippu.trace.utils.TextUtils
+import com.kippu.trace.utils.TimeUtils
 import java.time.Instant
-import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.time.temporal.ChronoUnit
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,6 +72,8 @@ fun EditorScreen(
     var maskOpacity by remember { mutableFloatStateOf(0.4f) }
     val showDatePicker = remember { mutableStateOf(false) }
     var mode by remember { mutableStateOf(DisplayMode.COUNT_DOWN) }
+    var dayChangeMinutes by remember { mutableIntStateOf(0) }
+    val showDayChangeDialog = remember { mutableStateOf(false) }
 
     val scrollState = rememberScrollState()
 
@@ -91,10 +92,9 @@ fun EditorScreen(
         Instant.ofEpochMilli(selectedDate).atZone(ZoneId.systemDefault()).toLocalDate()
     }
     
-    val days = remember(targetLocalDate) {
-        val today = LocalDate.now()
-        val d = ChronoUnit.DAYS.between(today, targetLocalDate)
-        if (d < 0) -d else d
+    val days = remember(targetLocalDate, dayChangeMinutes) {
+        val today = TimeUtils.getEffectiveToday(rolloverMinutes = dayChangeMinutes)
+        TimeUtils.getDayCount(today, targetLocalDate)
     }
 
     val formattedDate = remember(targetLocalDate) {
@@ -185,6 +185,17 @@ fun EditorScreen(
         }
     }
 
+    if (showDayChangeDialog.value) {
+        DayChangeTimeDialog(
+            initialMinutes = dayChangeMinutes,
+            onConfirm = { minutes ->
+                dayChangeMinutes = minutes
+                showDayChangeDialog.value = false
+            },
+            onDismiss = { showDayChangeDialog.value = false },
+        )
+    }
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -203,7 +214,8 @@ fun EditorScreen(
                             mode = mode,
                             isPinned = isPinned,
                             backgroundUri = backgroundUri,
-                            maskOpacity = maskOpacity
+                            maskOpacity = maskOpacity,
+                            dayChangeMinutes = dayChangeMinutes
                         ))
                     }) {
                         Icon(painter = rememberVectorPainter(Icons.Default.Check), contentDescription = "Save", tint = MaterialTheme.colorScheme.primary)
@@ -305,11 +317,41 @@ fun EditorScreen(
                     }
                 }
 
+                Card(
+                    onClick = { showDayChangeDialog.value = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(28.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.03f))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = stringResource(R.string.day_change_time),
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(start = 15.dp)
+                        )
+                        Text(
+                            text = TimeUtils.formatMinutesOfDay(dayChangeMinutes), // 注意：这里用的是 dayChangeMinutes
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(end = 40.dp)
+                        )
+                    }
+                }
+                
                 ModeSwitcher(
                     selectedMode = mode,
                     onModeSelected = { mode = it }
                 )
-            }
+            }   
 
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(
@@ -355,7 +397,8 @@ fun EditorScreen(
                                     mode = mode,
                                     isPinned = true,
                                     backgroundUri = backgroundUri,
-                                    maskOpacity = maskOpacity
+                                    maskOpacity = maskOpacity,
+                                    dayChangeMinutes = dayChangeMinutes
                                 ),
                                 onClick = {}
                             )
