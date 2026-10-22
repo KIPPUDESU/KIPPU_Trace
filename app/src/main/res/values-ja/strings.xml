@@ -7,7 +7,8 @@
     <string name="theme_mode">テーマ</string>
     <string name="language_selection">表示言語</string>
     <string name="day_change_time">日付変更の時刻</string>
-    <string name="reset_to_default">デフォルトに戻す</string>
+    <string name="day_change_time_summary">​定時時刻%1$s リセット</string>
+    <string name="reset_to_default">初期設定に戻す</string>
     <string name="backup_restore">バックアップと復元</string>
     <string name="about_app">TimeTrace について</string>
     <string name="close">閉じる</string>
@@ -81,7 +82,7 @@
     <string name="day_unit">日</string>
     <string name="anniversary_section">記念日</string>
     <string name="anniversary_days_tab">記念日数</string>
-    <string name="anniversary_preset_tab">プリセット記念日</string>
+    <string name="anniversary_preset_tab">既定記念</string>
     <string name="anniversary_custom_prefix">{days}日の第</string>
     <string name="anniversary_custom_suffix">回</string>
     <string name="anniversary_counter_year_prefix">1年の第</string>
@@ -111,10 +112,10 @@
     <string name="select_date">日付を選択</string>
     <string name="solar_calendar">新暦</string>
     <string name="lunar_calendar">旧暦</string>
-    <string name="lunar_date_format">旧暦 %1$d年%2$s月%3$d日</string>
-    <string name="lunar_date_compact_format">旧暦 %1$d/%2$s/%3$d</string>
+    <string name="lunar_date_format">%1$d年%2$s月%3$d日</string>
+    <string name="lunar_date_compact_format">%1$d/%2$s/%3$d</string>
     <string name="lunar_leap_month">閏%1$d</string>
-    <string name="lunar_month_header">旧暦 %1$d年%2$s月</string>
+    <string name="lunar_month_header">%1$d年%2$s月</string>
     <string name="previous_month">前の月</string>
     <string name="next_month">次の月</string>
     <string name="repeat_section">繰り返し</string>

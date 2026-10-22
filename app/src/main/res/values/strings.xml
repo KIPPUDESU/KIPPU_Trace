@@ -7,6 +7,7 @@
     <string name="theme_mode">日夜模式</string>
     <string name="language_selection">语言选择</string>
     <string name="day_change_time">日期变更时间</string>
+    <string name="day_change_time_summary">将于每日%1$s 更新</string>
     <string name="reset_to_default">恢复默认</string>
     <string name="backup_restore">数据备份与恢复</string>
     <string name="about_app">关于时痕</string>
@@ -111,8 +112,8 @@
     <string name="select_date">选择日期</string>
     <string name="solar_calendar">公历</string>
     <string name="lunar_calendar">农历</string>
-    <string name="lunar_date_format">农历 %1$d年%2$s月%3$d日</string>
-    <string name="lunar_date_compact_format">农历 %1$d/%2$s/%3$d</string>
+    <string name="lunar_date_format">%1$d年%2$s月%3$d日</string>
+    <string name="lunar_date_compact_format">%1$d/%2$s/%3$d</string>
     <string name="lunar_leap_month">闰%1$d</string>
     <string name="lunar_month_header">%1$d年%2$s月</string>
     <string name="previous_month">上个月</string>

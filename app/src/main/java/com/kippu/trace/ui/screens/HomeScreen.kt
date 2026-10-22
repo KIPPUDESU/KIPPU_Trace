@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -42,8 +43,11 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -453,27 +457,78 @@ fun HomeScreen(
                     shape = RoundedCornerShape(28.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.03f))
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = stringResource(R.string.day_change_time),
-                            style = MaterialTheme.typography.labelLarge, 
-                            fontWeight = FontWeight.Bold,                
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(start = 15.dp)
-                        )
-                        Text(
-                            text = TimeUtils.formatMinutesOfDay(event.dayChangeMinutes),
-                            style = MaterialTheme.typography.labelLarge, 
-                            fontWeight = FontWeight.Bold,               
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(end = 24.dp)
-                        )
+                    val timeText = TimeUtils.formatMinutesOfDay(event.dayChangeMinutes)
+                    val summary = stringResource(R.string.day_change_time_summary, timeText)
+                    val timeStart = summary.indexOf(timeText)
+                    val summaryPrefix = if (timeStart >= 0) summary.substring(0, timeStart) else summary
+                    val summarySuffix = if (timeStart >= 0) summary.substring(timeStart + timeText.length) else ""
+                    val timeStyle = SpanStyle(
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    val modeLabelStyle = MaterialTheme.typography.labelLarge
+                    val density = LocalDensity.current
+                    val textMeasurer = rememberTextMeasurer()
+                    val countdownLabel = stringResource(R.string.countdown_mode)
+                    val accumulateLabel = stringResource(R.string.accumulate_mode)
+                    val countdownSelected = event.mode == DisplayMode.COUNT_DOWN
+                    val countdownWidth = remember(countdownLabel, modeLabelStyle, countdownSelected, density) {
+                        with(density) {
+                            textMeasurer.measure(
+                                text = countdownLabel,
+                                style = modeLabelStyle.copy(
+                                    fontWeight = if (countdownSelected) FontWeight.Bold else FontWeight.Normal,
+                                ),
+                            ).size.width.toDp()
+                        }
+                    }
+                    val accumulateWidth = remember(accumulateLabel, modeLabelStyle, countdownSelected, density) {
+                        with(density) {
+                            textMeasurer.measure(
+                                text = accumulateLabel,
+                                style = modeLabelStyle.copy(
+                                    fontWeight = if (countdownSelected) FontWeight.Normal else FontWeight.Bold,
+                                ),
+                            ).size.width.toDp()
+                        }
+                    }
+                    // 按下方模式切换的居中内容动态对齐，保证不同语言下图标、文字、右侧时间都落在同一列
+                    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                        val segmentWidth = (maxWidth - 8.dp) / 2
+                        val contentWidth = 18.dp + 8.dp
+                        val startInset = 4.dp + (segmentWidth - contentWidth - countdownWidth) / 2
+                        val endInset = 4.dp + (segmentWidth - contentWidth - accumulateWidth) / 2
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = startInset, end = endInset, top = 16.dp, bottom = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Schedule,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = summaryPrefix.trimEnd(),
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                )
+                            }
+                            Text(
+                                text = buildAnnotatedString {
+                                    append(timeText)
+                                    addStyle(timeStyle, 0, timeText.length)
+                                    append(summarySuffix)
+                                },
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
                     }
                 }
 

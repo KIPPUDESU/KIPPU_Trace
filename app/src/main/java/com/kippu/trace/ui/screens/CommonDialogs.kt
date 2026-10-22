@@ -2,6 +2,7 @@ package com.kippu.trace.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -110,24 +111,55 @@ internal fun DayChangeTimeDialog(
         }
 
         Spacer(modifier = Modifier.height(24.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            TextButton(onClick = { onConfirm(0) }) {
-                Text(
-                    text = stringResource(R.string.reset_to_default),
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onDismiss) {
-                    Text(stringResource(R.string.cancel))
+
+        val resetLabel = stringResource(R.string.reset_to_default)
+        val cancelLabel = stringResource(R.string.cancel)
+        val confirmLabel = stringResource(R.string.confirm)
+
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            val compact = maxWidth < 260.dp
+
+            val resetButton: @Composable () -> Unit = {
+                TextButton(onClick = { onConfirm(0) }) {
+                    Text(
+                        text = resetLabel,
+                        color = MaterialTheme.colorScheme.error,
+                        maxLines = 1,
+                        softWrap = false,
+                    )
                 }
-                Spacer(modifier = Modifier.width(8.dp))
-                TextButton(onClick = { onConfirm(minutes) }) {
-                    Text(stringResource(R.string.confirm))
+            }
+            val actions: @Composable () -> Unit = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = onDismiss) {
+                        Text(cancelLabel, maxLines = 1, softWrap = false)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    TextButton(onClick = { onConfirm(minutes) }) {
+                        Text(confirmLabel, maxLines = 1, softWrap = false)
+                    }
+                }
+            }
+
+            if (compact) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    resetButton()
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        actions()
+                    }
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    resetButton()
+                    actions()
                 }
             }
         }

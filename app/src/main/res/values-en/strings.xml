@@ -7,6 +7,7 @@
     <string name="theme_mode">Theme Mode</string>
     <string name="language_selection">Language</string>
     <string name="day_change_time">Day Change Time</string>
+    <string name="day_change_time_summary">Updates daily at %1$s</string>
     <string name="reset_to_default">Reset to Default</string>
     <string name="backup_restore">Backup &amp; Restore</string>
     <string name="about_app">About TimeTrace</string>
@@ -14,7 +15,8 @@
     <string name="confirm">Confirm</string>
     <string name="cancel">Cancel</string>
     <string name="unsaved_changes_title">Discard unsaved changes?</string>
-    <string name="unsaved_changes_message">Your changes have not been saved. Are you sure you want to exit?</string>
+    <string name="unsaved_changes_message">Your changes have not been saved. Are you sure you want
+        to exit?</string>
     <string name="discard_changes">Discard</string>
     <string name="continue_editing">Keep editing</string>
     <string name="follow_system">System</string>
@@ -25,7 +27,8 @@
     <string name="backup_import">Import Backup</string>
     <string name="restore_from_zip">Restore from ZIP</string>
     <string name="confirm_import">Confirm Import</string>
-    <string name="import_warning">Importing a backup will replace all current data. This action is irreversible. Are you sure you want to continue?</string>
+    <string name="import_warning">Importing a backup will replace all current data. This action is
+        irreversible. Are you sure you want to continue?</string>
     <string name="confirm_import_button">Confirm Import</string>
     <string name="processing">Processing, please wait…</string>
     <string name="complete">Complete</string>
@@ -35,9 +38,12 @@
     <string name="widget_2x2_name">TimeTrace Widget 2x2</string>
     <string name="widget_3x2_name">TimeTrace Widget 3x2</string>
     <string name="widget_4x2_name">TimeTrace Widget 4x2</string>
-    <string name="widget_2x2_description">Shows text, days, and background image for a TimeTrace event</string>
-    <string name="widget_3x2_description">Shows a horizontal TimeTrace event with text, days, and background image</string>
-    <string name="widget_4x2_description">Shows a wide TimeTrace event with text, days, and background image</string>
+    <string name="widget_2x2_description">Shows text, days, and background image for a TimeTrace
+        event</string>
+    <string name="widget_3x2_description">Shows a horizontal TimeTrace event with text, days, and
+        background image</string>
+    <string name="widget_4x2_description">Shows a wide TimeTrace event with text, days, and
+        background image</string>
     <string name="widget_no_event">No TimeTrace yet</string>
     <string name="widget_no_date">--</string>
     <string name="no_data">Please swipe left on the timeline page to add an event.</string>
@@ -56,7 +62,8 @@
     <string name="label_from">From</string>
     <string name="label_since_date">Since</string>
     <string name="confirm_delete_title">Confirm Delete</string>
-    <string name="delete_confirm_message">Are you sure you want to delete "%s"? This action is irreversible.</string>
+    <string name="delete_confirm_message">Are you sure you want to delete "%s"? This action is
+        irreversible.</string>
     <string name="delete_button">Delete</string>
     <string name="timeline_title">Moments</string>
     <string name="empty_timeline_hint">Tap + to record your TimeTrace</string>
@@ -111,8 +118,8 @@
     <string name="select_date">Select Date</string>
     <string name="solar_calendar">Gregorian</string>
     <string name="lunar_calendar">Lunar</string>
-    <string name="lunar_date_format">Lunar %1$d-%2$s-%3$d</string>
-    <string name="lunar_date_compact_format">Lunar %1$d/%2$s/%3$d</string>
+    <string name="lunar_date_format">%1$d-%2$s-%3$d</string>
+    <string name="lunar_date_compact_format">%1$d/%2$s/%3$d</string>
     <string name="lunar_leap_month">Leap %1$d</string>
     <string name="lunar_month_header">Lunar %2$s/%1$d</string>
     <string name="previous_month">Previous month</string>

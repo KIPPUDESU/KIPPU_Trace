@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -45,35 +46,38 @@ fun WheelTimePicker(
     var hour by remember { mutableIntStateOf(safe / 60) }
     var minute by remember { mutableIntStateOf(safe % 60) }
 
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        WheelColumn(
-            count = 24,
-            initialIndex = hour,
-            onIndexChange = { h ->
-                hour = h
-                onMinutesChange(h * 60 + minute)
-            },
-            modifier = Modifier.width(72.dp),
-        )
-        Text(
-            text = ":",
-            style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Light),
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-            modifier = Modifier.padding(horizontal = 16.dp),
-        )
-        WheelColumn(
-            count = 60,
-            initialIndex = minute,
-            onIndexChange = { m ->
-                minute = m
-                onMinutesChange(hour * 60 + m)
-            },
-            modifier = Modifier.width(72.dp),
-        )
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        val columnWidth = ((maxWidth - 48.dp) / 2).coerceIn(40.dp, 72.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            WheelColumn(
+                count = 24,
+                initialIndex = hour,
+                onIndexChange = { h ->
+                    hour = h
+                    onMinutesChange(h * 60 + minute)
+                },
+                modifier = Modifier.width(columnWidth),
+            )
+            Text(
+                text = ":",
+                style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Light),
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+            WheelColumn(
+                count = 60,
+                initialIndex = minute,
+                onIndexChange = { m ->
+                    minute = m
+                    onMinutesChange(hour * 60 + m)
+                },
+                modifier = Modifier.width(columnWidth),
+            )
+        }
     }
 }
 
