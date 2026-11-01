@@ -93,8 +93,8 @@ private fun zoomAround(
     val centeredTop = (boundsH - after.height()) / 2f
 
     return target.copy(
-        offsetX = if (maxPanX > 0f) (centeredLeft - desiredLeft) * 2f / maxPanX else 0f,
-        offsetY = if (maxPanY > 0f) (centeredTop - desiredTop) * 2f / maxPanY else 0f,
+        offsetX = if (maxPanX > 1f) ((centeredLeft - desiredLeft) * 2f / maxPanX).coerceIn(-1f, 1f) else 0f,
+        offsetY = if (maxPanY > 1f) ((centeredTop - desiredTop) * 2f / maxPanY).coerceIn(-1f, 1f) else 0f,
     ).clamped()
 }
 
@@ -269,6 +269,7 @@ private fun WidgetImageRangePanel(
 ) {
     val maskOpacity = event.maskOpacity.coerceIn(0.25f, 0.65f)
     val context = LocalContext.current
+    val currentOnTransformChange by rememberUpdatedState(onTransformChange)
     val previewRequest = remember(event.backgroundUri) {
         ImageRequest.Builder(context)
             .data(event.backgroundUri)
@@ -295,81 +296,95 @@ private fun WidgetImageRangePanel(
 
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(aspectRatio)
-                .clip(RoundedCornerShape(16.dp))
-                .background(Color.Black)
-                // key 只放图片地址：拖动/缩放过程中 transform 变化不得重启手势协程
-                .pointerInput(event.backgroundUri) {
-                    // 单指拖动 = 平移；双指捏合 = 以两指中心为锚点缩放
-                    detectTransformGestures { centroid, pan, zoom, _ ->
-                        val intrinsic = imagePainter.intrinsicSize
-                        if (!isUsableImageSize(intrinsic)) return@detectTransformGestures
-
-                        var next = transform()
-                        if (zoom != 1f) {
-                            next = zoomAround(intrinsic, size, next, centroid, zoom)
-                        }
-                        if (pan != Offset.Zero) {
-                            val drawRect = WidgetImageCrop.computeDrawRect(
-                                imageWidth = intrinsic.width.roundToInt(),
-                                imageHeight = intrinsic.height.roundToInt(),
-                                boundsWidth = size.width.toFloat(),
-                                boundsHeight = size.height.toFloat(),
-                                transform = next,
-                            )
-                            val maxPanX = (drawRect.width() - size.width).coerceAtLeast(1f)
-                            val maxPanY = (drawRect.height() - size.height).coerceAtLeast(1f)
-                            next = next.copy(
-                                offsetX = next.offsetX - pan.x / maxPanX * 2f,
-                                offsetY = next.offsetY - pan.y / maxPanY * 2f,
-                            )
-                        }
-                        onTransformChange(next.clamped())
-                    }
-                },
+                .weight(1f)
+                .fillMaxWidth(),
+            contentAlignment = Alignment.Center,
         ) {
-            // 尺寸固定，拖动只走 draw 阶段；绘制算法与 TraceWidgetBackgroundRenderer 同源
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val painterState = imagePainter.state
-                if (painterState !is AsyncImagePainter.State.Success) return@Canvas
-                val imageSize = painterState.painter.intrinsicSize
-                if (!isUsableImageSize(imageSize)) return@Canvas
+            BoxWithConstraints(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center,
+            ) {
+                val safeAspectRatio = aspectRatio.takeIf { it > 0f } ?: 1f
+                val boxWidth = minOf(maxWidth, maxHeight * safeAspectRatio)
+                val boxHeight = boxWidth / safeAspectRatio
 
-                val drawRect = WidgetImageCrop.computeDrawRect(
-                    imageWidth = imageSize.width.roundToInt(),
-                    imageHeight = imageSize.height.roundToInt(),
-                    boundsWidth = size.width,
-                    boundsHeight = size.height,
-                    transform = transform(),
-                )
+                Box(
+                    modifier = Modifier
+                        .size(boxWidth, boxHeight)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color.Black)
+                        // key 只放图片地址：拖动/缩放过程中 transform 变化不得重启手势协程
+                        .pointerInput(event.backgroundUri) {
+                            // 单指拖动 = 平移；双指捏合 = 以两指中心为锚点缩放
+                            detectTransformGestures { centroid, pan, zoom, _ ->
+                                val intrinsic = imagePainter.intrinsicSize
+                                if (!isUsableImageSize(intrinsic)) return@detectTransformGestures
 
-                withTransform({
-                    translate(drawRect.left, drawRect.top)
-                    scale(
-                        scaleX = drawRect.width() / imageSize.width,
-                        scaleY = drawRect.height() / imageSize.height,
-                        pivot = Offset.Zero,
-                    )
-                }) {
-                    with(imagePainter) {
-                        draw(size = Size(imageSize.width, imageSize.height))
+                                var next = transform()
+                                if (zoom != 1f) {
+                                    next = zoomAround(intrinsic, size, next, centroid, zoom)
+                                } else if (pan != Offset.Zero) {
+                                    val drawRect = WidgetImageCrop.computeDrawRect(
+                                        imageWidth = intrinsic.width.roundToInt(),
+                                        imageHeight = intrinsic.height.roundToInt(),
+                                        boundsWidth = size.width.toFloat(),
+                                        boundsHeight = size.height.toFloat(),
+                                        transform = next,
+                                    )
+                                    val panRangeX = drawRect.width() - size.width
+                                    val panRangeY = drawRect.height() - size.height
+                                    next = next.copy(
+                                        offsetX = if (panRangeX > 1f) (next.offsetX - pan.x / panRangeX * 2f).coerceIn(-1f, 1f) else 0f,
+                                        offsetY = if (panRangeY > 1f) (next.offsetY - pan.y / panRangeY * 2f).coerceIn(-1f, 1f) else 0f,
+                                    )
+                                }
+                                currentOnTransformChange(next.clamped())
+                            }
+                        },
+                ) {
+                    // 尺寸固定，拖动只走 draw 阶段；绘制算法与 TraceWidgetBackgroundRenderer 同源
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        val painterState = imagePainter.state
+                        if (painterState !is AsyncImagePainter.State.Success) return@Canvas
+                        val imageSize = painterState.painter.intrinsicSize
+                        if (!isUsableImageSize(imageSize)) return@Canvas
+
+                        val drawRect = WidgetImageCrop.computeDrawRect(
+                            imageWidth = imageSize.width.roundToInt(),
+                            imageHeight = imageSize.height.roundToInt(),
+                            boundsWidth = size.width,
+                            boundsHeight = size.height,
+                            transform = transform(),
+                        )
+
+                        withTransform({
+                            translate(drawRect.left, drawRect.top)
+                            scale(
+                                scaleX = drawRect.width() / imageSize.width,
+                                scaleY = drawRect.height() / imageSize.height,
+                                pivot = Offset.Zero,
+                            )
+                        }) {
+                            with(imagePainter) {
+                                draw(size = Size(imageSize.width, imageSize.height))
+                            }
+                        }
                     }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(
+                                        Color.Transparent,
+                                        Color.Black.copy(alpha = maskOpacity),
+                                    ),
+                                ),
+                            ),
+                    )
                 }
             }
-
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                Color.Transparent,
-                                Color.Black.copy(alpha = maskOpacity),
-                            ),
-                        ),
-                    ),
-            )
         }
 
         Spacer(modifier = Modifier.height(16.dp))

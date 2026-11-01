@@ -193,18 +193,20 @@ object TraceWidgetUpdater {
             ?: appWidgetManager.getAppWidgetIds(ComponentName(context, providerClass))
 
         for (appWidgetId in appWidgetIds) {
-            val eventId = getWidgetEventId(context, appWidgetId)
-            val event = if (eventId != -1L) {
-                AppDatabase.getDatabase(context).eventDao().getEventById(eventId)
-            } else null
+            runCatching {
+                val eventId = getWidgetEventId(context, appWidgetId)
+                val event = if (eventId != -1L) {
+                    AppDatabase.getDatabase(context).eventDao().getEventById(eventId)
+                } else null
 
-            val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
-            val viewport = resolveViewportPx(context, widgetSize, options)
+                val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
+                val viewport = resolveViewportPx(context, widgetSize, options)
 
-            appWidgetManager.updateAppWidget(
-                appWidgetId,
-                buildRemoteViews(context, widgetSize, event, appWidgetId, viewport.width, viewport.height),
-            )
+                appWidgetManager.updateAppWidget(
+                    appWidgetId,
+                    buildRemoteViews(context, widgetSize, event, appWidgetId, viewport.width, viewport.height),
+                )
+            }
         }
     }
 
