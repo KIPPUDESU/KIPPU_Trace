@@ -97,6 +97,10 @@
     <string name="anniversary_custom_days_label">カスタム期間（N 日）</string>
     <string name="widget_select_title">表示するカードを選択</string>
     <string name="widget_no_cards">カードがありません</string>
+    <string name="widget_image_range_title">表示範囲を調整</string>
+    <string name="widget_image_range_hint">ドラッグやピンチ操作で背景の表示を調整</string>
+    <string name="widget_image_range_reset">リセット</string>
+    <string name="widget_image_range_confirm">完了</string>
     <string name="pinned_label">▷ 固定</string>
     <string name="time_separator"> </string>
     <string name="time_years">%d年</string>
