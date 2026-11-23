@@ -9,6 +9,13 @@ import android.content.Intent
 abstract class TraceWidgetProvider : AppWidgetProvider() {
     protected abstract val widgetSize: TraceWidgetSize
 
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        appWidgetIds.forEach { appWidgetId ->
+            TraceWidgetUpdater.removeWidgetPreference(context, appWidgetId)
+        }
+        super.onDeleted(context, appWidgetIds)
+    }
+
     override fun onReceive(context: Context, intent: Intent) {
         when (intent.action) {
             // 处理更新和时间变化广播
