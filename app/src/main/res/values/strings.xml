@@ -129,4 +129,22 @@
     <string name="repeat_hint">过期后目标日期自动推进</string>
     <string name="anniversary_message">纪念日文案（可选）</string>
     <string name="positive_days_required">请输入大于 0 的整数</string>
+    <string name="stop_event">停止事件</string>
+    <string name="stop_confirm_title">停止此事件？</string>
+    <string name="stop_confirm_message">确定要停止"%s"吗？停止后该事件的天数将定格，并从首页移至隐藏页面。</string>
+    <string name="stop_hint_title">事件已停止</string>
+    <string name="stop_hint_message">该事件已移入隐藏页面。在首页下拉即可进入，查看或恢复已定格的事件。</string>
+    <string name="dont_show_again">不再提示</string>
+    <string name="stopped_events_title">已定格的事件</string>
+    <string name="stopped_empty_hint">还没有已定格的事件</string>
+    <string name="restore_event">恢复</string>
+    <string name="restore_event_subtitle">重新将此事件恢复到首页与详情页</string>
+    <string name="restore_confirm_title">恢复此事件？</string>
+    <string name="restore_confirm_message">确定要将"%s"从已定格列表中移除并恢复到首页吗？</string>
+    <string name="event_restored_toast">事件已恢复</string>
+    <string name="label_stopped_prefix">已定格</string>
+    <string name="label_stopped_on">已于 %s 停止</string>
+    <string name="pull_to_stopped_continue">继续下拉进入已定格列表</string>
+    <string name="pull_to_stopped_release">释放进入已定格列表</string>
+    <string name="got_it">知道了</string>
 </resources>

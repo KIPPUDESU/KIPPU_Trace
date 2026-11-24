@@ -31,7 +31,7 @@ interface EventDao {
 
     @Transaction
     suspend fun advanceRepeatingEvents(today: LocalDate = LocalDate.now()) {
-        val changed = getAllEventsOnce().mapNotNull { event ->
+        val changed = getAllEventsOnce().filter { !it.isStopped }.mapNotNull { event ->
             AnniversaryUtils.advance(event, today).takeIf { it != event }
         }
         if (changed.isNotEmpty()) updateEvents(changed)
@@ -50,7 +50,7 @@ interface EventDao {
     }
 }
 
-@Database(entities = [DateEvent::class], version = 6, exportSchema = false)
+@Database(entities = [DateEvent::class], version = 8, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun eventDao(): EventDao
@@ -97,6 +97,19 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        internal val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                addColumnIfMissing(db, "isStopped", "INTEGER NOT NULL DEFAULT 0")
+                addColumnIfMissing(db, "stoppedAt", "INTEGER")
+            }
+        }
+
+        internal val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                addColumnIfMissing(db, "stoppedAt", "INTEGER")
+            }
+        }
+
         private fun addColumnIfMissing(
             db: SupportSQLiteDatabase,
             name: String,
@@ -125,7 +138,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "trace_database",
                 )
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance

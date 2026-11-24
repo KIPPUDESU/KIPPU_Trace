@@ -10,7 +10,7 @@ class EventRepository(private val eventDao: EventDao) {
     suspend fun advanceRepeatingEvents() = eventDao.advanceRepeatingEvents()
 
     suspend fun insert(event: DateEvent) {
-        eventDao.insertEvent(AnniversaryUtils.advance(event))
+        eventDao.insertEvent(if (event.isStopped) event else AnniversaryUtils.advance(event))
     }
 
     suspend fun delete(event: DateEvent) {

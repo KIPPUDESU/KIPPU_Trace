@@ -137,6 +137,8 @@ object BackupManager {
             put("repeatInterval", repeatInterval)
             put("repeatCustomDays", repeatCustomDays)
             put("repeatAnchorDate", repeatAnchorDate ?: JSONObject.NULL)
+            put("isStopped", isStopped)
+            put("stoppedAt", stoppedAt ?: JSONObject.NULL)
         }
     }
 
@@ -168,6 +170,8 @@ object BackupManager {
             repeatInterval = optInt("repeatInterval", 1).coerceAtLeast(1),
             repeatCustomDays = optInt("repeatCustomDays", 100).coerceAtLeast(1),
             repeatAnchorDate = if (isNull("repeatAnchorDate")) null else optLong("repeatAnchorDate"),
+            isStopped = optBoolean("isStopped", false),
+            stoppedAt = if (isNull("stoppedAt")) null else optLong("stoppedAt"),
         )
     }
 }

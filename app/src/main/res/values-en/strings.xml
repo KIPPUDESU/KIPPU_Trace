@@ -135,4 +135,22 @@
     <string name="repeat_hint">The target date advances automatically after it expires.</string>
     <string name="anniversary_message">Anniversary message (optional)</string>
     <string name="positive_days_required">Enter a positive whole number</string>
+    <string name="stop_event">Stop event</string>
+    <string name="stop_confirm_title">Stop this event?</string>
+    <string name="stop_confirm_message">Are you sure you want to stop "%s"? Its day count will be frozen and moved to the hidden page.</string>
+    <string name="stop_hint_title">Event stopped</string>
+    <string name="stop_hint_message">This event has been moved to a hidden page. Pull down on the home screen to view or restore frozen events.</string>
+    <string name="dont_show_again">Don\'t show again</string>
+    <string name="stopped_events_title">Frozen events</string>
+    <string name="stopped_empty_hint">No frozen events yet</string>
+    <string name="restore_event">Restore</string>
+    <string name="restore_event_subtitle">Move this event back to home and detail screens</string>
+    <string name="restore_confirm_title">Restore this event?</string>
+    <string name="restore_confirm_message">Are you sure you want to remove "%s" from the frozen list and restore it to the home screen?</string>
+    <string name="event_restored_toast">Event restored</string>
+    <string name="label_stopped_prefix">Paused</string>
+    <string name="label_stopped_on">Stopped on %s</string>
+    <string name="pull_to_stopped_continue">Keep pulling for frozen list</string>
+    <string name="pull_to_stopped_release">Release for frozen list</string>
+    <string name="got_it">Got it</string>
 </resources>

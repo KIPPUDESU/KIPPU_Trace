@@ -74,6 +74,9 @@ import java.util.Locale
 
 data class DateSelection(val millis: Long, val isLunar: Boolean)
 
+/** 弹窗内标题、分段控件、日历、按钮共用同一个内容宽度，保证外容器左右边缘一致 */
+private val DialogContentPadding = 16.dp
+
 private val SOLAR_MIN_DATE: LocalDate = LocalDate.of(1900, 1, 1)
 private val SOLAR_MAX_DATE: LocalDate = LocalDate.of(2101, 12, 31)
 private val SOLAR_YEARS = 1900..2101
@@ -190,13 +193,13 @@ fun DateSelectionDialog(
                     style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                     modifier = Modifier
                         .align(Alignment.Start)
-                        .padding(horizontal = 20.dp),
+                        .padding(horizontal = DialogContentPadding),
                 )
 
                 SlidingSegmentedControl(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                        .padding(horizontal = DialogContentPadding, vertical = 12.dp),
                     options = listOf(
                         SlidingSegmentOption(stringResource(R.string.solar_calendar)),
                         SlidingSegmentOption(stringResource(R.string.lunar_calendar)),
@@ -225,7 +228,7 @@ fun DateSelectionDialog(
 
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = DialogContentPadding),
                     horizontalArrangement = Arrangement.End,
                 ) {
                     TextButton(onClick = onDismiss) {
@@ -267,7 +270,7 @@ private fun SolarDatePicker(
     val monthLabel = remember(displayedMonth, locale) { solarMonthLabel(displayedMonth, locale) }
 
     Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = DialogContentPadding),
     ) {
         CalendarHeader(
             title = monthLabel,
@@ -368,7 +371,7 @@ private fun LunarDatePicker(
     }
 
     Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = DialogContentPadding),
     ) {
         CalendarHeader(
             title = stringResource(R.string.lunar_month_header, displayedYear, monthText),

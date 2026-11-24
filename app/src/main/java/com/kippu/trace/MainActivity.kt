@@ -201,6 +201,10 @@ sealed class Screen(val route: String, val icon: ImageVector) {
     }
     data object Settings : Screen("settings", Icons.Default.Settings)
     data object Editor : Screen("editor", Icons.Default.Add)
+    data object Stopped : Screen("stopped", Icons.Default.Settings)
+    data object StoppedDetail : Screen("stopped_detail/{eventId}", Icons.Default.AutoAwesomeMotion) {
+        fun createRoute(eventId: Long) = "stopped_detail/$eventId"
+    }
 }
 
 @Composable
@@ -212,6 +216,9 @@ fun MainApp(
     onDeleteEvent: (DateEvent) -> Unit = {},
     initialDetailEventId: Long? = null,
 ) {
+    val allEvents = events
+    val events = remember(allEvents) { allEvents.filter { !it.isStopped } }
+    val stoppedEvents = remember(allEvents) { allEvents.filter { it.isStopped } }
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
@@ -256,7 +263,8 @@ fun MainApp(
                                     navController.navigate(Screen.Detail.createRoute(event.id))
                                 },
                                 onDeleteEvent = onDeleteEvent,
-                                onUpdateEvent = { onAddEvent(it) }
+                                onUpdateEvent = { onAddEvent(it) },
+                                onOpenStopped = { navController.navigate(Screen.Stopped.route) },
                             )
                             1 -> {
                                 val firstEventId = events.firstOrNull()?.id ?: 0L
@@ -268,7 +276,9 @@ fun MainApp(
                                             pagerState.animateScrollToPage(0)
                                         }
                                     },
-                                    onUpdateEvent = { onAddEvent(it) }
+                                    onUpdateEvent = { onAddEvent(it) },
+                                    onStopEvent = { onAddEvent(it.copy(isStopped = true, stoppedAt = System.currentTimeMillis())) },
+                                    onRestoreEvent = { onAddEvent(it.copy(isStopped = false, stoppedAt = null)) },
                                 )
                             }
                             2 -> com.kippu.trace.ui.screens.SettingsScreen(
@@ -293,11 +303,46 @@ fun MainApp(
                             navController.popBackStack()
                         },
                         onUpdateEvent = { onAddEvent(it) },
+                        onStopEvent = { onAddEvent(it.copy(isStopped = true, stoppedAt = System.currentTimeMillis())) },
+                        onRestoreEvent = { onAddEvent(it.copy(isStopped = false, stoppedAt = null)) },
                         onNavigateToPage = { page ->
                             coroutineScope.launch {
                                 pagerState.scrollToPage(page)
                             }
                         }
+                    )
+                }
+
+                composable(
+                    route = Screen.Stopped.route,
+                    enterTransition = { slideInVertically(initialOffsetY = { -it }) + fadeIn() },
+                    exitTransition = { fadeOut() + slideOutVertically(targetOffsetY = { -it }) },
+                ) {
+                    com.kippu.trace.ui.screens.StoppedScreen(
+                        events = stoppedEvents,
+                        onBack = { navController.popBackStack() },
+                        onEventClick = { event ->
+                            navController.navigate(Screen.StoppedDetail.createRoute(event.id))
+                        },
+                        onRestore = { onAddEvent(it.copy(isStopped = false, stoppedAt = null)) },
+                        onDelete = onDeleteEvent,
+                    )
+                }
+
+                composable(
+                    route = Screen.StoppedDetail.route,
+                    arguments = listOf(androidx.navigation.navArgument("eventId") { type = androidx.navigation.NavType.LongType }),
+                    enterTransition = { fadeIn(tween(500)) },
+                    exitTransition = { fadeOut(tween(500)) },
+                ) { backStackEntry ->
+                    val eventId = backStackEntry.arguments?.getLong("eventId") ?: 0L
+                    com.kippu.trace.ui.screens.DetailScreen(
+                        events = stoppedEvents,
+                        initialEventId = eventId,
+                        onBack = { navController.popBackStack() },
+                        onUpdateEvent = { onAddEvent(it) },
+                        onStopEvent = { onAddEvent(it.copy(isStopped = true, stoppedAt = System.currentTimeMillis())) },
+                        onRestoreEvent = { onAddEvent(it.copy(isStopped = false, stoppedAt = null)) },
                     )
                 }
 
