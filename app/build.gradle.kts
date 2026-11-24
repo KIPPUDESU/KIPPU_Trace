@@ -13,8 +13,8 @@ android {
         applicationId = "com.kippu.trace"
         minSdk = 26
         targetSdk = 34 // Downgraded to 34
-        versionCode = 7
-        versionName = "2.2.0"
+        versionCode = 8
+        versionName = "3.0.0"
 
     }
 

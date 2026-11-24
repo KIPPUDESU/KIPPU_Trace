@@ -1,6 +1,13 @@
 package com.kippu.trace.ui.screens
 
+import android.content.Context
 import android.net.Uri
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
+import android.view.HapticFeedbackConstants
+import android.view.View
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.*
@@ -21,6 +28,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.input.TextFieldLineLimits
@@ -39,9 +47,16 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -76,8 +91,18 @@ fun HomeScreen(
     onEventClick: (DateEvent) -> Unit,
     onDeleteEvent: (DateEvent) -> Unit,
     onUpdateEvent: (DateEvent) -> Unit = {},
+    onOpenStopped: () -> Unit = {},
 ) {
     val context = LocalContext.current
+    val view = LocalView.current
+    // 首页顶部继续下拉：顶部出现进度圈，拖到满圈时震动提醒，松手后进入「已停止事件」隐藏页面
+    val currentOnOpenStopped by rememberUpdatedState(onOpenStopped)
+    val pullThresholdPx = with(LocalDensity.current) { 120.dp.toPx() }
+    val maxPullPx = pullThresholdPx * 1.45f
+    val pullDistance = remember { Animatable(0f) }
+    val pullReadyScale = remember { Animatable(1f) }
+    val pullScope = rememberCoroutineScope()
+
     val pinnedEventsState = remember(events) { events.filter { it.isPinned }.toMutableStateList() }
     val otherEventsState = remember(events) { events.filter { !it.isPinned }.toMutableStateList() }
 
@@ -85,6 +110,78 @@ fun HomeScreen(
     var editingEvent by remember { mutableStateOf<DateEvent?>(null) }
     var originalEditingEvent by remember { mutableStateOf<DateEvent?>(null) }
     var showDiscardConfirmation by remember { mutableStateOf(false) }
+    val isPopupOpen by rememberUpdatedState(editingEvent != null || eventToDelete != null)
+
+    val pullToStoppedConnection = remember(pullThresholdPx, view, context) {
+        object : NestedScrollConnection {
+            private var reachedThreshold = false
+
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (isPopupOpen) return Offset.Zero
+                // 已经下拉时往回推：先收回进度，不让列表滚动
+                if (source == NestedScrollSource.UserInput && available.y < 0f && pullDistance.value > 0f) {
+                    val prev = pullDistance.value
+                    val newValue = (prev + available.y).coerceAtLeast(0f)
+                    val consumedY = newValue - prev
+                    pullScope.launch { pullDistance.snapTo(newValue) }
+                    if (reachedThreshold && newValue < pullThresholdPx * 0.9f) {
+                        reachedThreshold = false
+                        pullScope.launch {
+                            pullReadyScale.animateTo(1f, tween(durationMillis = 160))
+                        }
+                    }
+                    return Offset(0f, consumedY)
+                }
+                return Offset.Zero
+            }
+
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                if (isPopupOpen || source != NestedScrollSource.UserInput || available.y <= 0f) return Offset.Zero
+                val prev = pullDistance.value
+                // 达到满圈后进一步加大阻尼，提供拉到底的张力手感
+                val damping = if (prev >= pullThresholdPx) 0.18f else 0.55f
+                val newValue = (prev + available.y * damping).coerceAtMost(maxPullPx)
+                pullScope.launch { pullDistance.snapTo(newValue) }
+
+                // 首次拉满进度圈时触发清脆震动与圆圈平滑放大，等待松手进入
+                if (!reachedThreshold && newValue >= pullThresholdPx) {
+                    reachedThreshold = true
+                    performPullHaptic(context, view, HapticStage.REACH_THRESHOLD)
+                    pullScope.launch {
+                        pullReadyScale.animateTo(
+                            targetValue = 1.18f,
+                            animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing),
+                        )
+                    }
+                }
+                return Offset(0f, available.y)
+            }
+
+            override suspend fun onPreFling(available: Velocity): Velocity {
+                if (isPopupOpen) return Velocity.Zero
+                val shouldOpen = pullDistance.value >= pullThresholdPx
+                reachedThreshold = false
+                if (shouldOpen) {
+                    performPullHaptic(context, view, HapticStage.RELEASE_OPEN)
+                    currentOnOpenStopped()
+                    pullScope.launch {
+                        delay(250)
+                        pullDistance.snapTo(0f)
+                        pullReadyScale.snapTo(1f)
+                    }
+                    return available
+                }
+                if (pullDistance.value > 0f) {
+                    pullScope.launch {
+                        pullReadyScale.animateTo(1f, tween(200))
+                    }
+                    pullScope.launch { pullDistance.animateTo(0f, tween(250)) }
+                    return available
+                }
+                return Velocity.Zero
+            }
+        }
+    }
     val hasUnsavedEdit = rememberUpdatedState(
         editingEvent != null && editingEvent != originalEditingEvent,
     )
@@ -166,87 +263,148 @@ fun HomeScreen(
         // 不消费底部导航栏 insets，让内容延伸到导航栏背后实现沉浸式
         contentWindowInsets = WindowInsets.systemBars.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
     ) { innerPadding ->
-        if (events.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
-                Text(text = stringResource(R.string.empty_timeline_hint), style = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.secondary))
-            }
-        } else {
-            val gridState = rememberLazyGridState()
-            BoxWithConstraints(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-                val columns = if (maxWidth >= 600.dp) 2 else 1
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .nestedScroll(pullToStoppedConnection)
+        ) {
+            val listOffsetY = (pullDistance.value * 0.78f).roundToInt()
+            if (events.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .offset { IntOffset(0, listOffsetY) }
+                        .verticalScroll(rememberScrollState()),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = stringResource(R.string.empty_timeline_hint),
+                        style = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.secondary),
+                    )
+                }
+            } else {
+                val gridState = rememberLazyGridState()
+                BoxWithConstraints(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .offset { IntOffset(0, listOffsetY) }
+                ) {
+                    val columns = if (maxWidth >= 600.dp) 2 else 1
 
-                if (columns == 1) {
-                    // 手机：单列布局
-                    LazyColumn(
-                        state = lazyListState,
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 120.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        itemsIndexed(pinnedEventsState, key = { _, it -> "pinned_${it.id}" }) { _, event ->
-                            SwipeActionWrapper(
-                                isResetRequested = editingEvent == null && eventToDelete == null,
-                                isDeleting = eventToDelete?.id == event.id,
-                                isEditing = editingEvent?.id == event.id,
-                                onTrashClick = { eventToDelete = event },
-                                onEditClick = {
-                                    showDiscardConfirmation = false
-                                    originalEditingEvent = event
-                                    editingEvent = event
-                                }
-                            ) {
-                                // 编辑中的卡片直接读取 editingEvent 实时预览改动
-                                PinnedEventCard(event = if (editingEvent?.id == event.id) editingEvent!! else event, onClick = { onEventClick(event) }, nowMillis = nowMillis)
-                            }
-                        }
-
-                        itemsIndexed(otherEventsState, key = { _, it -> it.id }) { _, event ->
-                            SwipeActionWrapper(
-                                isResetRequested = editingEvent == null && eventToDelete == null,
-                                isDeleting = eventToDelete?.id == event.id,
-                                isEditing = editingEvent?.id == event.id,
-                                onTrashClick = { eventToDelete = event },
-                                onEditClick = {
-                                    showDiscardConfirmation = false
-                                    originalEditingEvent = event
-                                    editingEvent = event
-                                }
-                            ) {
-                                NormalEventCard(event = if (editingEvent?.id == event.id) editingEvent!! else event, onClick = { onEventClick(event) }, nowMillis = nowMillis)
-                            }
-                        }
-                    }
-                } else {
-                    // 平板：双列网格布局
-                    val allEvents = pinnedEventsState.toList() + otherEventsState.toList()
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(2),
-                        state = gridState,
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 120.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        items(allEvents, key = { "grid_${it.id}" }) { event ->
-                            SwipeActionWrapper(
-                                isResetRequested = editingEvent == null && eventToDelete == null,
-                                isDeleting = eventToDelete?.id == event.id,
-                                isEditing = editingEvent?.id == event.id,
-                                onTrashClick = { eventToDelete = event },
-                                onEditClick = {
-                                    showDiscardConfirmation = false
-                                    originalEditingEvent = event
-                                    editingEvent = event
-                                }
-                            ) {
-                                if (event.isPinned) {
+                    if (columns == 1) {
+                        // 手机：单列布局
+                        LazyColumn(
+                            state = lazyListState,
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 120.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            itemsIndexed(pinnedEventsState, key = { _, it -> "pinned_${it.id}" }) { _, event ->
+                                SwipeActionWrapper(
+                                    isResetRequested = editingEvent == null && eventToDelete == null,
+                                    isDeleting = eventToDelete?.id == event.id,
+                                    isEditing = editingEvent?.id == event.id,
+                                    onTrashClick = { eventToDelete = event },
+                                    onEditClick = {
+                                        showDiscardConfirmation = false
+                                        originalEditingEvent = event
+                                        editingEvent = event
+                                    }
+                                ) {
+                                    // 编辑中的卡片直接读取 editingEvent 实时预览改动
                                     PinnedEventCard(event = if (editingEvent?.id == event.id) editingEvent!! else event, onClick = { onEventClick(event) }, nowMillis = nowMillis)
-                                } else {
+                                }
+                            }
+
+                            itemsIndexed(otherEventsState, key = { _, it -> it.id }) { _, event ->
+                                SwipeActionWrapper(
+                                    isResetRequested = editingEvent == null && eventToDelete == null,
+                                    isDeleting = eventToDelete?.id == event.id,
+                                    isEditing = editingEvent?.id == event.id,
+                                    onTrashClick = { eventToDelete = event },
+                                    onEditClick = {
+                                        showDiscardConfirmation = false
+                                        originalEditingEvent = event
+                                        editingEvent = event
+                                    }
+                                ) {
                                     NormalEventCard(event = if (editingEvent?.id == event.id) editingEvent!! else event, onClick = { onEventClick(event) }, nowMillis = nowMillis)
                                 }
                             }
                         }
+                    } else {
+                        // 平板：双列网格布局
+                        val allEvents = pinnedEventsState.toList() + otherEventsState.toList()
+                        LazyVerticalGrid(
+                            columns = GridCells.Fixed(2),
+                            state = gridState,
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 120.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            items(allEvents, key = { "grid_${it.id}" }) { event ->
+                                SwipeActionWrapper(
+                                    isResetRequested = editingEvent == null && eventToDelete == null,
+                                    isDeleting = eventToDelete?.id == event.id,
+                                    isEditing = editingEvent?.id == event.id,
+                                    onTrashClick = { eventToDelete = event },
+                                    onEditClick = {
+                                        showDiscardConfirmation = false
+                                        originalEditingEvent = event
+                                        editingEvent = event
+                                    }
+                                ) {
+                                    if (event.isPinned) {
+                                        PinnedEventCard(event = if (editingEvent?.id == event.id) editingEvent!! else event, onClick = { onEventClick(event) }, nowMillis = nowMillis)
+                                    } else {
+                                        NormalEventCard(event = if (editingEvent?.id == event.id) editingEvent!! else event, onClick = { onEventClick(event) }, nowMillis = nowMillis)
+                                    }
+                                }
+                            }
+                        }
                     }
+                }
+            }
+
+            // 顶部下拉进度圆圈指示器 + 下方小字提示：
+            // 前 28% 行程优先把圆环完整拉出视野，之后从 0% 画到 100%，这样能完整看清圆弧推进过程
+            val rawRatio = (pullDistance.value / pullThresholdPx).coerceIn(0f, 1f)
+            val arcProgress = ((rawRatio - 0.28f) / 0.72f).coerceIn(0f, 1f)
+            val isPullReady = pullDistance.value >= pullThresholdPx
+            if (rawRatio > 0.02f) {
+                val density = LocalDensity.current
+                val indicatorHeightPx = with(density) { 58.dp.toPx() }
+                val indicatorOffsetY = (listOffsetY - indicatorHeightPx).roundToInt()
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .offset { IntOffset(0, indicatorOffsetY) }
+                        .alpha((rawRatio * 2.2f).coerceIn(0f, 1f)),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    CircularProgressIndicator(
+                        progress = { arcProgress },
+                        modifier = Modifier
+                            .size(28.dp)
+                            .scale(pullReadyScale.value),
+                        strokeWidth = if (isPullReady) 3.2.dp else 2.8.dp,
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f),
+                        strokeCap = StrokeCap.Round,
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = stringResource(
+                            if (isPullReady) R.string.pull_to_stopped_release
+                            else R.string.pull_to_stopped_continue
+                        ),
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            color = MaterialTheme.colorScheme.secondary,
+                            fontSize = 12.sp,
+                        ),
+                    )
                 }
             }
         }
@@ -702,6 +860,58 @@ fun SwipeActionWrapper(
         }
         Box(modifier = Modifier.fillMaxWidth().offset { IntOffset(offsetX.value.roundToInt(), 0) }) { content() }
     }
+}
+
+private enum class HapticStage {
+    REACH_THRESHOLD,
+    RELEASE_OPEN,
+}
+
+private fun performPullHaptic(
+    context: Context,
+    view: View,
+    stage: HapticStage,
+) {
+    val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        context.getSystemService(VibratorManager::class.java)?.defaultVibrator
+    } else {
+        @Suppress("DEPRECATION")
+        context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+    }
+
+    if (vibrator != null && vibrator.hasVibrator()) {
+        // Android 10+ (API 29)：拉满使用更强烈饱满的 EFFECT_HEAVY_CLICK（或满幅 255 强脉冲），松手使用清晰的 EFFECT_CLICK
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && vibrator.hasAmplitudeControl()) {
+            val effect = when (stage) {
+                HapticStage.REACH_THRESHOLD -> VibrationEffect.createOneShot(18L, 255)
+                HapticStage.RELEASE_OPEN -> VibrationEffect.createOneShot(10L, 175)
+            }
+            vibrator.vibrate(effect)
+            return
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val effect = when (stage) {
+                HapticStage.REACH_THRESHOLD -> VibrationEffect.createPredefined(VibrationEffect.EFFECT_HEAVY_CLICK)
+                HapticStage.RELEASE_OPEN -> VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK)
+            }
+            vibrator.vibrate(effect)
+            return
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val effect = when (stage) {
+                HapticStage.REACH_THRESHOLD -> VibrationEffect.createOneShot(20L, VibrationEffect.DEFAULT_AMPLITUDE)
+                HapticStage.RELEASE_OPEN -> VibrationEffect.createOneShot(10L, VibrationEffect.DEFAULT_AMPLITUDE)
+            }
+            vibrator.vibrate(effect)
+            return
+        }
+    }
+
+    val feedbackConstant = when (stage) {
+        HapticStage.REACH_THRESHOLD -> HapticFeedbackConstants.LONG_PRESS
+        HapticStage.RELEASE_OPEN -> HapticFeedbackConstants.CONTEXT_CLICK
+    }
+    view.performHapticFeedback(feedbackConstant)
 }
 
 @Preview(showBackground = true, backgroundColor = 0xFFF8F9FA)

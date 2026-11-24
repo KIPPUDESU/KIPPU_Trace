@@ -39,17 +39,36 @@ fun NormalEventCard(
     val targetLocalDate = Instant.ofEpochMilli(event.targetDate)
         .atZone(ZoneId.of("UTC"))
         .toLocalDate()
-    val today = TimeUtils.getEffectiveToday(nowMillis, rolloverMinutes)
-    val daysTotal = TimeUtils.getDayCount(today, targetLocalDate)
-    val isCountdownToday = event.mode == DisplayMode.COUNT_DOWN && daysTotal == 0L
-    val relativeTime = TimeUtils.getRelativeTime(event.targetDate, today)
-    val timeDescription = TimeUtils.formatRelativeTime(context, relativeTime)
+    val realToday = TimeUtils.getEffectiveToday(nowMillis, rolloverMinutes)
+    val stoppedToday = if (event.isStopped) {
+        TimeUtils.getEffectiveToday(event.stoppedAt ?: nowMillis, rolloverMinutes)
+    } else {
+        realToday
+    }
+    // 右侧大数字天数定格在停止那天
+    val daysTotal = TimeUtils.getDayCount(stoppedToday, targetLocalDate)
+    val isCountdownToday = !event.isStopped && event.mode == DisplayMode.COUNT_DOWN && daysTotal == 0L
+    // 左下角相对时间：已定格事件计算「操作定格那天 -> 今天」的时间差；未定格事件计算「目标日期 -> 今天」
+    val relativeTime = if (event.isStopped) {
+        TimeUtils.getRelativeTimeBetween(stoppedToday, realToday)
+    } else {
+        TimeUtils.getRelativeTime(event.targetDate, realToday)
+    }
+    val timeDescription = TimeUtils.formatRelativeTime(
+        context = context,
+        result = relativeTime,
+        useZeroDaysWhenEmpty = event.isStopped,
+    )
     
     // 语义前缀
-    val prefix = if (event.isFuture) stringResource(R.string.label_until) else stringResource(R.string.label_since)
+    val prefix = when {
+        event.isStopped -> stringResource(R.string.label_stopped_prefix)
+        event.isFuture -> stringResource(R.string.label_until)
+        else -> stringResource(R.string.label_since)
+    }
 
     // 累计模式下的纪念日文字（非累计或未启用时返回 null）
-    val anniversary = TimeUtils.getAnniversaryText(context, event, today)
+    val anniversary = TimeUtils.getAnniversaryText(context, event, stoppedToday)
     val anniversaryText = anniversary?.text
 
     val visualWidth = TextUtils.getVisualWidth(event.title)

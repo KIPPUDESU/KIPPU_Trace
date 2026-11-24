@@ -50,7 +50,8 @@ fun PinnedEventCard(
     val targetLocalDate = Instant.ofEpochMilli(event.targetDate)
         .atZone(ZoneId.of("UTC"))
         .toLocalDate()
-    val today = TimeUtils.getEffectiveToday(nowMillis, rolloverMinutes)
+    val effectiveMillis = if (event.isStopped) (event.stoppedAt ?: nowMillis) else nowMillis
+    val today = TimeUtils.getEffectiveToday(effectiveMillis, rolloverMinutes)
     val days = TimeUtils.getDayCount(today, targetLocalDate)
 
     val context = LocalContext.current

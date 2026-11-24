@@ -1,6 +1,7 @@
 package com.kippu.trace.ui.screens
 
 import android.app.Activity
+import android.content.Context
 import android.net.Uri
 import android.os.Build
 import android.view.WindowManager
@@ -21,6 +22,7 @@ import com.kippu.trace.ui.components.DateSelectionDialog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.VerticalPager
@@ -45,9 +47,13 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -79,10 +85,16 @@ fun DetailScreen(
     onBack: () -> Unit,
     onUpdateEvent: (DateEvent) -> Unit = {},
     onNavigateToPage: ((Int) -> Unit)? = null,
+    onStopEvent: (DateEvent) -> Unit = {},
+    onRestoreEvent: (DateEvent) -> Unit = {},
 ) {
     val context = LocalContext.current
     val view = LocalView.current
     var showControls by remember { mutableStateOf(false) }
+    var eventPendingStop by remember { mutableStateOf<DateEvent?>(null) }
+    var eventPendingRestore by remember { mutableStateOf<DateEvent?>(null) }
+    var showStopHint by remember { mutableStateOf(false) }
+    var dontShowStopHintAgain by remember { mutableStateOf(false) }
     var showBottomSheet by remember { mutableStateOf(false) }
     var captureTrigger by remember { mutableIntStateOf(0) }
     val sheetState = rememberModalBottomSheetState()
@@ -148,6 +160,129 @@ fun DetailScreen(
                 window.attributes.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
             }
         }
+    }
+
+    // 第一步弹窗：确认是否停止该事件
+    eventPendingStop?.let { targetEvent ->
+        AlertDialog(
+            onDismissRequest = { eventPendingStop = null },
+            title = { Text(text = stringResource(R.string.stop_confirm_title), fontWeight = FontWeight.Bold) },
+            text = { Text(text = stringResource(R.string.stop_confirm_message, targetEvent.title)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val wasLastEvent = events.size <= 1
+                        eventPendingStop = null
+                        showControls = false
+                        onStopEvent(targetEvent)
+                        val prefs = context.getSharedPreferences("stop_event_prefs", Context.MODE_PRIVATE)
+                        val skipHint = prefs.getBoolean("dont_show_stop_hint", false)
+                        if (!skipHint) {
+                            dontShowStopHintAgain = false
+                            showStopHint = true
+                        } else if (wasLastEvent && onNavigateToPage != null) {
+                            onBack()
+                        }
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                ) {
+                    Text(stringResource(R.string.confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { eventPendingStop = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+            shape = RoundedCornerShape(28.dp),
+            containerColor = MaterialTheme.colorScheme.surface,
+        )
+    }
+
+    // 确认从已定格恢复弹窗
+    eventPendingRestore?.let { targetEvent ->
+        AlertDialog(
+            onDismissRequest = { eventPendingRestore = null },
+            title = { Text(text = stringResource(R.string.restore_confirm_title), fontWeight = FontWeight.Bold) },
+            text = { Text(text = stringResource(R.string.restore_confirm_message, targetEvent.title)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val wasLastEvent = events.size <= 1
+                        eventPendingRestore = null
+                        showControls = false
+                        onRestoreEvent(targetEvent)
+                        Toast.makeText(context, R.string.event_restored_toast, Toast.LENGTH_SHORT).show()
+                        if (wasLastEvent) onBack()
+                    },
+                ) {
+                    Text(stringResource(R.string.confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { eventPendingRestore = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+            shape = RoundedCornerShape(28.dp),
+            containerColor = MaterialTheme.colorScheme.surface,
+        )
+    }
+
+    // 第二步弹窗：提示隐藏页面的存在（每次确认停止后都会弹出，除非勾选过“不再提示”）
+    if (showStopHint) {
+        val finishHint = {
+            if (dontShowStopHintAgain) {
+                context.getSharedPreferences("stop_event_prefs", Context.MODE_PRIVATE)
+                    .edit()
+                    .putBoolean("dont_show_stop_hint", true)
+                    .apply()
+            }
+            showStopHint = false
+            if (events.isEmpty() && onNavigateToPage != null) onBack()
+        }
+        AlertDialog(
+            onDismissRequest = finishHint,
+            title = { Text(text = stringResource(R.string.stop_hint_title), fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    text = stringResource(R.string.stop_hint_message),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            },
+            confirmButton = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .offset(x = (-12).dp)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                            ) { dontShowStopHintAgain = !dontShowStopHintAgain },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(
+                            checked = dontShowStopHintAgain,
+                            onCheckedChange = { dontShowStopHintAgain = it },
+                        )
+                        Text(
+                            text = stringResource(R.string.dont_show_again),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    TextButton(onClick = finishHint) {
+                        Text(stringResource(R.string.got_it))
+                    }
+                }
+            },
+            shape = RoundedCornerShape(28.dp),
+            containerColor = MaterialTheme.colorScheme.surface,
+        )
     }
 
     if (events.isEmpty()) {
@@ -257,12 +392,28 @@ fun DetailScreen(
                     onClick = { onBack() }
                 )
                 
-                IconButtonWithPulse(
-                    icon = Icons.Default.MoreVert,
-                    onClick = { 
-                        showBottomSheet = true
-                    }
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    val currentEvent = events.getOrNull(pagerState.currentPage % events.size)
+                    val isCurrentStopped = currentEvent?.isStopped == true
+                    IconButtonWithPulse(
+                        icon = if (isCurrentStopped) SlimPlayIcon else SlimPauseIcon,
+                        onClick = {
+                            currentEvent?.let {
+                                if (it.isStopped) {
+                                    eventPendingRestore = it
+                                } else {
+                                    eventPendingStop = it
+                                }
+                            }
+                        }
+                    )
+                    IconButtonWithPulse(
+                        icon = Icons.Default.MoreVert,
+                        onClick = {
+                            showBottomSheet = true
+                        }
+                    )
+                }
             }
         }
 
@@ -285,7 +436,12 @@ fun DetailScreen(
                         shape = RoundedCornerShape(28.dp),
                         color = MaterialTheme.colorScheme.surface,
                         shadowElevation = 12.dp,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .pointerInput(Unit) {
+                                // 阻止在悬浮菜单卡片上上滑/下滑时带动 ModalBottomSheet 产生微小位移
+                                detectVerticalDragGestures { change, _ -> change.consume() }
+                            }
                     ) {
                         Column {
                             DetailActionItem(
@@ -492,6 +648,55 @@ fun DetailScreen(
     }
 }
 
+// 定制无外框细长圆角双竖线（暂停/定格）图标
+private val SlimPauseIcon: ImageVector by lazy {
+    ImageVector.Builder(
+        name = "SlimPause",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f,
+    ).apply {
+        path(
+            stroke = SolidColor(Color.White),
+            strokeLineWidth = 2.6f,
+            strokeLineCap = StrokeCap.Round,
+            strokeLineJoin = StrokeJoin.Round,
+        ) {
+            moveTo(8.8f, 6.0f)
+            lineTo(8.8f, 18.0f)
+            moveTo(15.2f, 6.0f)
+            lineTo(15.2f, 18.0f)
+        }
+    }.build()
+}
+
+// 定制无外框细线条圆角空心三角形（继续/恢复）图标
+private val SlimPlayIcon: ImageVector by lazy {
+    ImageVector.Builder(
+        name = "SlimPlay",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f,
+    ).apply {
+        path(
+            stroke = SolidColor(Color.White),
+            strokeLineWidth = 1.9f,
+            strokeLineCap = StrokeCap.Round,
+            strokeLineJoin = StrokeJoin.Round,
+        ) {
+            moveTo(9.0f, 6.2f)
+             curveTo(8.0f, 5.6f, 7.2f, 6.1f, 7.2f, 7.2f)
+            lineTo(7.2f, 16.8f)
+            curveTo(7.2f, 17.9f, 8.0f, 18.4f, 9.0f, 17.8f)
+            lineTo(17.2f, 13.0f)
+            curveTo(18.1f, 12.5f, 18.1f, 11.5f, 17.2f, 11.0f)
+            close()
+        }
+    }.build()
+}
+
 @Composable
 fun DetailActionItem(
     icon: ImageVector,
@@ -602,11 +807,28 @@ fun EventDetailItem(
     val targetDateText = remember(event.targetDate, event.isLunar, context) {
         TimeUtils.formatEventDate(context, event)
     }
-    val today = TimeUtils.getEffectiveToday(rolloverMinutes = rolloverMinutes)
+    val stoppedAtMillis = if (event.isStopped) (event.stoppedAt ?: System.currentTimeMillis()) else null
+    val stoppedDateText = remember(stoppedAtMillis) {
+        stoppedAtMillis?.let {
+            Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate().toString()
+        }
+    }
+    val today = if (stoppedAtMillis != null) {
+        TimeUtils.getEffectiveToday(nowMillis = stoppedAtMillis, rolloverMinutes = rolloverMinutes)
+    } else {
+        TimeUtils.getEffectiveToday(rolloverMinutes = rolloverMinutes)
+    }
     val days = TimeUtils.getDayCount(today, targetLocalDate)
 
     val animatedDays = remember { Animatable(0f) }
-    var detailedTime by remember { mutableStateOf(TimeUtils.getDetailedTime(event.targetDate)) }
+    var detailedTime by remember(event.targetDate, stoppedAtMillis) {
+        mutableStateOf(
+            TimeUtils.getDetailedTime(
+                targetDateMillis = event.targetDate,
+                nowMillis = stoppedAtMillis ?: System.currentTimeMillis(),
+            )
+        )
+    }
 
     LaunchedEffect(shouldCapture) {
         if (shouldCapture > 0 && isCurrentPage) {
@@ -648,7 +870,14 @@ fun EventDetailItem(
         }
     }
 
-    LaunchedEffect(event.id, event.targetDate) {
+    LaunchedEffect(event.id, event.targetDate, event.isStopped, stoppedAtMillis) {
+        if (event.isStopped) {
+            detailedTime = TimeUtils.getDetailedTime(
+                targetDateMillis = event.targetDate,
+                nowMillis = stoppedAtMillis ?: System.currentTimeMillis(),
+            )
+            return@LaunchedEffect
+        }
         while (true) {
             detailedTime = TimeUtils.getDetailedTime(event.targetDate)
             delay(1000)
@@ -686,8 +915,12 @@ fun EventDetailItem(
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            val isCountdownToday = event.mode == DisplayMode.COUNT_DOWN && days == 0L
-            val prefix = if (event.isFuture) stringResource(R.string.label_until) else stringResource(R.string.label_since)
+            val isCountdownToday = !event.isStopped && event.mode == DisplayMode.COUNT_DOWN && days == 0L
+            val prefix = when {
+                event.isStopped -> stringResource(R.string.label_stopped_prefix)
+                event.isFuture -> stringResource(R.string.label_until)
+                else -> stringResource(R.string.label_since)
+            }
             
             // 构造每9字换行且前缀紧跟末尾的标题（总长限35字）
             val annotatedTitle = remember(event.title, prefix, isCountdownToday) {
@@ -769,15 +1002,28 @@ fun EventDetailItem(
                 )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = String.format(Locale.getDefault(), "%02d:%02d:%02d", detailedTime.hours, detailedTime.minutes, detailedTime.seconds),
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    color = Color.White.copy(alpha = 0.8f),
-                    letterSpacing = 4.sp
+            if (event.isStopped && stoppedDateText != null) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = stringResource(R.string.label_stopped_on, stoppedDateText),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 24.dp),
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        color = Color.White.copy(alpha = 0.85f),
+                        letterSpacing = 2.sp,
+                    ),
                 )
-            )
+            } else {
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = String.format(Locale.getDefault(), "%02d:%02d:%02d", detailedTime.hours, detailedTime.minutes, detailedTime.seconds),
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        color = Color.White.copy(alpha = 0.8f),
+                        letterSpacing = 4.sp
+                    )
+                )
+            }
         }
     }
 }

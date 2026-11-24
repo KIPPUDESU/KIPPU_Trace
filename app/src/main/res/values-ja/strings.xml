@@ -129,4 +129,22 @@
     <string name="repeat_hint">期限を過ぎると目標日が自動的に進みます。</string>
     <string name="anniversary_message">記念日のメッセージ（任意）</string>
     <string name="positive_days_required">正の整数を入力してください</string>
+    <string name="stop_event">イベントを停止</string>
+    <string name="stop_confirm_title">このイベントを停止しますか？</string>
+    <string name="stop_confirm_message">「%s」を停止しますか？停止すると日数のカウントが固定され、非表示ページに移動します。</string>
+    <string name="stop_hint_title">イベントを停止しました</string>
+    <string name="stop_hint_message">このイベントは非表示ページに移動しました。ホーム画面を下に引くと、固定したイベントの確認や復元ができます。</string>
+    <string name="dont_show_again">今後表示しない</string>
+    <string name="stopped_events_title">固定したイベント</string>
+    <string name="stopped_empty_hint">固定したイベントはまだありません</string>
+    <string name="restore_event">復元</string>
+    <string name="restore_event_subtitle">このイベントをホームと詳細画面に戻す</string>
+    <string name="restore_confirm_title">このイベントを復元しますか？</string>
+    <string name="restore_confirm_message">「%s」を固定一覧から解除し、ホーム画面に復元しますか？</string>
+    <string name="event_restored_toast">イベントを復元しました</string>
+    <string name="label_stopped_prefix">停止中</string>
+    <string name="label_stopped_on">%s に停止</string>
+    <string name="pull_to_stopped_continue">さらに下に引いて固定一覧へ</string>
+    <string name="pull_to_stopped_release">指を離して固定一覧へ</string>
+    <string name="got_it">OK</string>
 </resources>

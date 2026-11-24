@@ -39,5 +39,7 @@ data class DateEvent(
     val repeatMode: RepeatMode = RepeatMode.NONE,
     val repeatInterval: Int = 1,
     val repeatCustomDays: Int = 100,
-    val repeatAnchorDate: Long? = null
+    val repeatAnchorDate: Long? = null,
+    val isStopped: Boolean = false, // 已停止：从首页/详情隐藏，只在隐藏页面显示
+    val stoppedAt: Long? = null,    // 停止时的时间戳（毫秒），用于冻结天数与停止日期文案
 )

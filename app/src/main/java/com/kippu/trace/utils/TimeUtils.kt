@@ -121,9 +121,12 @@ object TimeUtils {
         val targetDate = Instant.ofEpochMilli(targetDateMillis)
             .atZone(ZoneId.of("UTC"))
             .toLocalDate()
-        
-        val start = if (today.isBefore(targetDate)) today else targetDate
-        val end = if (today.isBefore(targetDate)) targetDate else today
+        return getRelativeTimeBetween(targetDate, today)
+    }
+
+    fun getRelativeTimeBetween(fromDate: LocalDate, toDate: LocalDate): RelativeTimeResult {
+        val start = if (toDate.isBefore(fromDate)) toDate else fromDate
+        val end = if (toDate.isBefore(fromDate)) fromDate else toDate
         
         val period = Period.between(start, end)
         
@@ -139,24 +142,34 @@ object TimeUtils {
         )
     }
 
-    fun formatRelativeTime(context: Context, result: RelativeTimeResult): String {
+    fun formatRelativeTime(
+        context: Context,
+        result: RelativeTimeResult,
+        useZeroDaysWhenEmpty: Boolean = false,
+    ): String {
         val parts = mutableListOf<String>()
         if (result.years > 0) parts.add(context.getString(R.string.time_years, result.years))
         if (result.months > 0) parts.add(context.getString(R.string.time_months, result.months))
         if (result.weeks > 0) parts.add(context.getString(R.string.time_weeks, result.weeks))
         if (result.days > 0) parts.add(context.getString(R.string.time_days_unit, result.days))
 
-        if (parts.isEmpty()) return context.getString(R.string.time_today)
+        if (parts.isEmpty()) {
+            return if (useZeroDaysWhenEmpty) {
+                context.getString(R.string.time_days_unit, 0)
+            } else {
+                context.getString(R.string.time_today)
+            }
+        }
         return parts.joinToString(context.getString(R.string.time_separator))
     }
 
-    // 获取详情页实时时分秒
+    // 获取详情页实时时分秒（或停止时刻冻结的时分秒）
 
-    fun getDetailedTime(targetDateMillis: Long): DetailedTimeResult {
+    fun getDetailedTime(targetDateMillis: Long, nowMillis: Long = System.currentTimeMillis()): DetailedTimeResult {
         val systemZone = ZoneId.systemDefault()
         
-        // 当前本地时间
-        val now = ZonedDateTime.now(systemZone)
+        // 当前或冻结的本地时间
+        val now = Instant.ofEpochMilli(nowMillis).atZone(systemZone)
         
         // 将 DatePicker 的 UTC 午夜视为本地午夜
         val targetMidnight = Instant.ofEpochMilli(targetDateMillis)
