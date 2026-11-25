@@ -316,7 +316,15 @@ fun MainApp(
                 composable(
                     route = Screen.Stopped.route,
                     enterTransition = { slideInVertically(initialOffsetY = { -it }) + fadeIn() },
-                    exitTransition = { fadeOut() + slideOutVertically(targetOffsetY = { -it }) },
+                    exitTransition = { fadeOut(tween(400)) },
+                    popEnterTransition = { fadeIn(tween(400)) },
+                    popExitTransition = {
+                        fadeOut(animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing)) +
+                            slideOutVertically(
+                                animationSpec = tween(durationMillis = 360, easing = FastOutSlowInEasing),
+                                targetOffsetY = { -it / 12 },
+                            )
+                    },
                 ) {
                     com.kippu.trace.ui.screens.StoppedScreen(
                         events = stoppedEvents,
