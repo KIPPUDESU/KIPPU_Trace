@@ -13,6 +13,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -50,6 +53,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -74,6 +78,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.abs
 
@@ -357,6 +362,7 @@ fun DetailScreen(
                     event = events[realIndex],
                     shouldCapture = captureTrigger,
                     isCurrentPage = pagerState.currentPage == pageIndex,
+                    showControls = showControls && pagerState.currentPage == pageIndex,
                     onCaptured = { captureTrigger = 0 }
                 )
             }
@@ -793,26 +799,41 @@ fun IconButtonWithPulse(
     }
 }
 
+private val STOPPED_TIMESTAMP_FORMATTER: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.US)
+
 @Composable
 fun EventDetailItem(
     event: DateEvent,
     shouldCapture: Int = 0,
     isCurrentPage: Boolean = false,
+    showControls: Boolean = false,
     onCaptured: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val graphicsLayer = rememberGraphicsLayer()
+    val isCapturing = shouldCapture > 0 && isCurrentPage
     val rolloverMinutes = event.dayChangeMinutes
     val targetLocalDate = Instant.ofEpochMilli(event.targetDate).atZone(ZoneId.of("UTC")).toLocalDate()
     val targetDateText = remember(event.targetDate, event.isLunar, context) {
         TimeUtils.formatEventDate(context, event)
     }
-    val stoppedAtMillis = if (event.isStopped) (event.stoppedAt ?: System.currentTimeMillis()) else null
+    val stoppedAtMillis = remember(event.id, event.isStopped, event.stoppedAt) {
+        if (event.isStopped) (event.stoppedAt ?: System.currentTimeMillis()) else null
+    }
     val stoppedDateText = remember(stoppedAtMillis) {
         stoppedAtMillis?.let {
             Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate().toString()
         }
     }
+    val stoppedTimestampText = remember(stoppedAtMillis) {
+        stoppedAtMillis?.let {
+            Instant.ofEpochMilli(it)
+                .atZone(ZoneId.systemDefault())
+                .format(STOPPED_TIMESTAMP_FORMATTER)
+        }
+    }
+    val showStoppedTimestamp = event.isStopped && stoppedTimestampText != null && showControls && !isCapturing
     val today = if (stoppedAtMillis != null) {
         TimeUtils.getEffectiveToday(nowMillis = stoppedAtMillis, rolloverMinutes = rolloverMinutes)
     } else {
@@ -979,15 +1000,72 @@ fun EventDetailItem(
             }
             
             val datePrefix = if (event.isFuture) stringResource(R.string.label_from) else stringResource(R.string.label_since_date)
-            Text(
-                text = "$datePrefix $targetDateText",
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 24.dp),
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    color = Color.White.copy(alpha = 0.6f),
-                    letterSpacing = 2.sp
-                )
+            val stoppedTransitionProgress = animateFloatAsState(
+                targetValue = if (showStoppedTimestamp) 1f else 0f,
+                animationSpec = if (isCapturing) {
+                    snap()
+                } else {
+                    spring(dampingRatio = 0.80f, stiffness = 340f)
+                },
+                label = "stopped_timestamp_progress"
             )
+
+            if (event.isStopped && stoppedTimestampText != null) {
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "$datePrefix $targetDateText",
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .padding(horizontal = 24.dp)
+                            .graphicsLayer {
+                                val p = if (isCapturing) 0f else stoppedTransitionProgress.value
+                                val clamped = p.coerceIn(0f, 1f)
+                                alpha = ((0.48f - clamped) / 0.48f).coerceIn(0f, 1f)
+                                val scale = 1f - 0.06f * clamped
+                                scaleX = scale
+                                scaleY = scale
+                                translationY = -p * 14.dp.toPx()
+                            },
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            color = Color.White.copy(alpha = 0.6f),
+                            letterSpacing = 2.sp
+                        )
+                    )
+                    Text(
+                        text = stoppedTimestampText,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .padding(horizontal = 24.dp)
+                            .graphicsLayer {
+                                val p = if (isCapturing) 0f else stoppedTransitionProgress.value
+                                val clamped = p.coerceIn(0f, 1f)
+                                alpha = ((clamped - 0.36f) / 0.64f).coerceIn(0f, 1f)
+                                val scale = 0.93f + 0.07f * p.coerceIn(0f, 1.03f)
+                                scaleX = scale
+                                scaleY = scale
+                                translationY = (1f - p) * 16.dp.toPx()
+                            },
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            color = Color.White.copy(alpha = 0.85f),
+                            letterSpacing = 2.sp,
+                            fontFeatureSettings = "tnum"
+                        )
+                    )
+                }
+            } else {
+                Text(
+                    text = "$datePrefix $targetDateText",
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 24.dp),
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        color = Color.White.copy(alpha = 0.6f),
+                        letterSpacing = 2.sp
+                    )
+                )
+            }
 
             TimeUtils.getAnniversaryText(context, event, today)?.text?.let { anniversaryText ->
                 Spacer(modifier = Modifier.height(4.dp))
@@ -1007,7 +1085,17 @@ fun EventDetailItem(
                 Text(
                     text = stringResource(R.string.label_stopped_on, stoppedDateText),
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = 24.dp),
+                    modifier = Modifier
+                        .padding(horizontal = 24.dp)
+                        .graphicsLayer {
+                            val p = if (isCapturing) 0f else stoppedTransitionProgress.value
+                            val clamped = p.coerceIn(0f, 1f)
+                            alpha = ((0.55f - clamped) / 0.55f).coerceIn(0f, 1f)
+                            val scale = 1f - 0.06f * clamped
+                            scaleX = scale
+                            scaleY = scale
+                            translationY = -p * 10.dp.toPx()
+                        },
                     style = MaterialTheme.typography.bodyMedium.copy(
                         color = Color.White.copy(alpha = 0.85f),
                         letterSpacing = 2.sp,
