@@ -3,6 +3,7 @@ package com.kippu.trace.ui.screens
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.VisibilityThreshold
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.clickable
@@ -11,7 +12,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -33,11 +35,15 @@ import com.kippu.trace.R
 import com.kippu.trace.model.DateEvent
 import com.kippu.trace.ui.components.NormalEventCard
 import com.kippu.trace.ui.components.PinnedEventCard
+import com.kippu.trace.ui.components.ReorderableCardItem
+import com.kippu.trace.ui.components.rememberReorderableListState
+import com.kippu.trace.ui.components.reorderableContainer
+import com.kippu.trace.ui.components.syncEventStateList
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-/** 隐藏页面：放置已停止的事件，点击进入全屏详情，左右滑可恢复或删除。 */
+/** 隐藏页面：放置已停止的事件，点击进入全屏详情，左右滑可恢复或删除，长按拖动可调整顺序。 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StoppedScreen(
@@ -46,11 +52,31 @@ fun StoppedScreen(
     onEventClick: (DateEvent) -> Unit,
     onRestore: (DateEvent) -> Unit,
     onDelete: (DateEvent) -> Unit,
+    onUpdateOrder: (List<DateEvent>) -> Unit = {},
 ) {
     BackHandler(onBack = onBack)
 
+    val pinnedEventsState = remember { events.filter { it.isPinned }.toMutableStateList() }
+    val otherEventsState = remember { events.filter { !it.isPinned }.toMutableStateList() }
+    val lazyListState = rememberLazyListState()
+    val reorderState = rememberReorderableListState(
+        listState = lazyListState,
+        pinnedList = pinnedEventsState,
+        normalList = otherEventsState,
+        onCommitOrder = onUpdateOrder,
+    )
+    val isDragging = reorderState.isDragging
+
+    LaunchedEffect(events, isDragging) {
+        if (!isDragging) {
+            syncEventStateList(pinnedEventsState, events.filter { it.isPinned })
+            syncEventStateList(otherEventsState, events.filter { !it.isPinned })
+        }
+    }
+
     var eventToDelete by remember { mutableStateOf<DateEvent?>(null) }
     var eventToRestore by remember { mutableStateOf<DateEvent?>(null) }
+    val isDialogOpen = eventToDelete != null || eventToRestore != null
 
     eventToRestore?.let { event ->
         AlertDialog(
@@ -125,27 +151,72 @@ fun StoppedScreen(
             }
         } else {
             LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(innerPadding),
+                state = lazyListState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .reorderableContainer(
+                        state = reorderState,
+                        enabled = !isDialogOpen,
+                    ),
                 contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 48.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                items(events, key = { it.id }) { event ->
-                    StoppedSwipeActionWrapper(
-                        isResetRequested = eventToDelete == null && eventToRestore == null,
-                        isDeleting = eventToDelete?.id == event.id,
-                        isRestoring = eventToRestore?.id == event.id,
-                        onTrashClick = { eventToDelete = event },
-                        onRestoreClick = { eventToRestore = event },
+                itemsIndexed(pinnedEventsState, key = { _, it -> it.id }) { _, event ->
+                    val isFloating = reorderState.draggedId == event.id || reorderState.settlingId == event.id
+                    ReorderableCardItem(
+                        eventId = event.id,
+                        state = reorderState,
+                        modifier = Modifier.animateItem(
+                            fadeInSpec = null,
+                            fadeOutSpec = null,
+                            placementSpec = if (isFloating) null else spring(
+                                stiffness = Spring.StiffnessMediumLow,
+                                visibilityThreshold = IntOffset.VisibilityThreshold,
+                            ),
+                        ),
                     ) {
-                        if (event.isPinned) {
+                        StoppedSwipeActionWrapper(
+                            isResetRequested = isDragging || (eventToDelete == null && eventToRestore == null),
+                            swipeEnabled = !isDragging,
+                            isDeleting = eventToDelete?.id == event.id,
+                            isRestoring = eventToRestore?.id == event.id,
+                            onTrashClick = { eventToDelete = event },
+                            onRestoreClick = { eventToRestore = event },
+                        ) {
                             PinnedEventCard(
                                 event = event,
-                                onClick = { onEventClick(event) },
+                                onClick = { if (!isDragging) onEventClick(event) },
                             )
-                        } else {
+                        }
+                    }
+                }
+
+                itemsIndexed(otherEventsState, key = { _, it -> it.id }) { _, event ->
+                    val isFloating = reorderState.draggedId == event.id || reorderState.settlingId == event.id
+                    ReorderableCardItem(
+                        eventId = event.id,
+                        state = reorderState,
+                        modifier = Modifier.animateItem(
+                            fadeInSpec = null,
+                            fadeOutSpec = null,
+                            placementSpec = if (isFloating) null else spring(
+                                stiffness = Spring.StiffnessMediumLow,
+                                visibilityThreshold = IntOffset.VisibilityThreshold,
+                            ),
+                        ),
+                    ) {
+                        StoppedSwipeActionWrapper(
+                            isResetRequested = isDragging || (eventToDelete == null && eventToRestore == null),
+                            swipeEnabled = !isDragging,
+                            isDeleting = eventToDelete?.id == event.id,
+                            isRestoring = eventToRestore?.id == event.id,
+                            onTrashClick = { eventToDelete = event },
+                            onRestoreClick = { eventToRestore = event },
+                        ) {
                             NormalEventCard(
                                 event = event,
-                                onClick = { onEventClick(event) },
+                                onClick = { if (!isDragging) onEventClick(event) },
                             )
                         }
                     }
@@ -158,6 +229,7 @@ fun StoppedScreen(
 @Composable
 private fun StoppedSwipeActionWrapper(
     isResetRequested: Boolean,
+    swipeEnabled: Boolean = true,
     isDeleting: Boolean,
     isRestoring: Boolean,
     onTrashClick: () -> Unit,
@@ -169,37 +241,45 @@ private fun StoppedSwipeActionWrapper(
     val offsetX = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(isResetRequested) {
-        if (isResetRequested && offsetX.value != 0f) {
+    LaunchedEffect(isResetRequested, swipeEnabled) {
+        if ((!swipeEnabled || isResetRequested) && offsetX.value != 0f) {
             offsetX.animateTo(0f, spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow))
         }
     }
 
     Box(
-        modifier = Modifier.fillMaxWidth().pointerInput(Unit) {
-            detectHorizontalDragGestures(
-                onHorizontalDrag = { change, dragAmount ->
-                    change.consume()
-                    val nextX = offsetX.value + dragAmount
-                    val effectiveX = when {
-                        nextX < -revealWidth -> -revealWidth - (abs(nextX + revealWidth) * 150f / (abs(nextX + revealWidth) + 150f))
-                        nextX > revealWidth -> revealWidth + ((nextX - revealWidth) * 150f / ((nextX - revealWidth) + 150f))
-                        else -> nextX
-                    }
-                    scope.launch { offsetX.snapTo(effectiveX) }
-                },
-                onDragEnd = {
-                    val target = when {
-                        offsetX.value < -revealWidth * 0.45f -> -revealWidth
-                        offsetX.value > revealWidth * 0.45f -> revealWidth
-                        else -> 0f
-                    }
-                    scope.launch {
-                        offsetX.animateTo(target, spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow))
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (!swipeEnabled) {
+                    Modifier
+                } else {
+                    Modifier.pointerInput(Unit) {
+                        detectHorizontalDragGestures(
+                            onHorizontalDrag = { change, dragAmount ->
+                                change.consume()
+                                val nextX = offsetX.value + dragAmount
+                                val effectiveX = when {
+                                    nextX < -revealWidth -> -revealWidth - (abs(nextX + revealWidth) * 150f / (abs(nextX + revealWidth) + 150f))
+                                    nextX > revealWidth -> revealWidth + ((nextX - revealWidth) * 150f / ((nextX - revealWidth) + 150f))
+                                    else -> nextX
+                                }
+                                scope.launch { offsetX.snapTo(effectiveX) }
+                            },
+                            onDragEnd = {
+                                val target = when {
+                                    offsetX.value < -revealWidth * 0.45f -> -revealWidth
+                                    offsetX.value > revealWidth * 0.45f -> revealWidth
+                                    else -> 0f
+                                }
+                                scope.launch {
+                                    offsetX.animateTo(target, spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow))
+                                }
+                            },
+                        )
                     }
                 }
             )
-        }
     ) {
         val deleteIconScale by animateFloatAsState(targetValue = if (isDeleting) 1.2f else 1f, animationSpec = spring(stiffness = Spring.StiffnessLow))
         val deleteIconAlpha by animateFloatAsState(targetValue = if (offsetX.value < -20f) (if (isDeleting) 1f else 0.9f) else 0f)

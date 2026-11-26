@@ -167,6 +167,7 @@ class MainActivity : ComponentActivity() {
                     },
                     onAddEvent = { eventViewModel.addEvent(it) },
                     onDeleteEvent = { eventViewModel.deleteEvent(it) },
+                    onUpdateOrder = { eventViewModel.updateEventsOrder(it) },
                     initialDetailEventId = deepLinkEventId,
                 )
             }
@@ -214,6 +215,7 @@ fun MainApp(
     onThemeModeChange: (ThemeMode) -> Unit = {},
     onAddEvent: (DateEvent) -> Unit = {},
     onDeleteEvent: (DateEvent) -> Unit = {},
+    onUpdateOrder: (List<DateEvent>) -> Unit = {},
     initialDetailEventId: Long? = null,
 ) {
     val allEvents = events
@@ -223,6 +225,7 @@ fun MainApp(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
     val coroutineScope = rememberCoroutineScope()
+    var isHomeDragging by remember { mutableStateOf(false) }
 
     // 小组件点击 deep link → 直接打开卡片详情页
     LaunchedEffect(initialDetailEventId) {
@@ -253,6 +256,7 @@ fun MainApp(
                     HorizontalPager(
                         state = pagerState,
                         modifier = Modifier.fillMaxSize(),
+                        userScrollEnabled = !isHomeDragging,
                         beyondViewportPageCount = 2
                     ) { page ->
                         when (page) {
@@ -264,6 +268,8 @@ fun MainApp(
                                 },
                                 onDeleteEvent = onDeleteEvent,
                                 onUpdateEvent = { onAddEvent(it) },
+                                onUpdateOrder = onUpdateOrder,
+                                onDraggingChange = { isHomeDragging = it },
                                 onOpenStopped = { navController.navigate(Screen.Stopped.route) },
                             )
                             1 -> {
@@ -334,6 +340,7 @@ fun MainApp(
                         },
                         onRestore = { onAddEvent(it.copy(isStopped = false, stoppedAt = null)) },
                         onDelete = onDeleteEvent,
+                        onUpdateOrder = onUpdateOrder,
                     )
                 }
 
