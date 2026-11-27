@@ -125,6 +125,7 @@ object BackupManager {
                 put("backgroundFile", File(backgroundUri).name)
             }
             put("isPinned", isPinned)
+            put("position", position)
             put("maskOpacity", maskOpacity.toDouble())
             put("dayChangeMinutes", dayChangeMinutes)
             put("anniversaryType", anniversaryType.name)
@@ -154,6 +155,7 @@ object BackupManager {
                 File(backgroundsDir, getString("backgroundFile")).absolutePath
             } else null,
             isPinned = optBoolean("isPinned", false),
+            position = optInt("position", 0),
             maskOpacity = optDouble("maskOpacity", 0.3).toFloat(),
             dayChangeMinutes = optInt("dayChangeMinutes", 0),
             anniversaryType = optString("anniversaryType", AnniversaryType.NONE.name).let {

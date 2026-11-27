@@ -80,6 +80,11 @@ import com.kippu.trace.ui.components.AutoSizeSingleLineText
 import com.kippu.trace.ui.components.DateSelectionDialog
 import com.kippu.trace.ui.components.NormalEventCard
 import com.kippu.trace.ui.components.PinnedEventCard
+import com.kippu.trace.ui.components.ReorderableCardItem
+import com.kippu.trace.ui.components.rememberReorderableGridState
+import com.kippu.trace.ui.components.rememberReorderableListState
+import com.kippu.trace.ui.components.reorderableContainer
+import com.kippu.trace.ui.components.syncEventStateList
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -91,6 +96,8 @@ fun HomeScreen(
     onEventClick: (DateEvent) -> Unit,
     onDeleteEvent: (DateEvent) -> Unit,
     onUpdateEvent: (DateEvent) -> Unit = {},
+    onUpdateOrder: (List<DateEvent>) -> Unit = {},
+    onDraggingChange: (Boolean) -> Unit = {},
     onOpenStopped: () -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -103,21 +110,59 @@ fun HomeScreen(
     val pullReadyScale = remember { Animatable(1f) }
     val pullScope = rememberCoroutineScope()
 
-    val pinnedEventsState = remember(events) { events.filter { it.isPinned }.toMutableStateList() }
-    val otherEventsState = remember(events) { events.filter { !it.isPinned }.toMutableStateList() }
+    val pinnedEventsState = remember { events.filter { it.isPinned }.toMutableStateList() }
+    val otherEventsState = remember { events.filter { !it.isPinned }.toMutableStateList() }
+
+    val lazyListState = rememberLazyListState()
+    val gridState = rememberLazyGridState()
+    val listReorderState = rememberReorderableListState(
+        listState = lazyListState,
+        pinnedList = pinnedEventsState,
+        normalList = otherEventsState,
+        onCommitOrder = onUpdateOrder,
+    )
+    val gridReorderState = rememberReorderableGridState(
+        gridState = gridState,
+        pinnedList = pinnedEventsState,
+        normalList = otherEventsState,
+        onCommitOrder = onUpdateOrder,
+    )
+    var useGridLayout by remember { mutableStateOf(false) }
+    val activeReorderState = if (useGridLayout) gridReorderState else listReorderState
+    val isDragging = activeReorderState.isDragging
+
+    LaunchedEffect(events, isDragging) {
+        if (!isDragging) {
+            syncEventStateList(pinnedEventsState, events.filter { it.isPinned })
+            syncEventStateList(otherEventsState, events.filter { !it.isPinned })
+        }
+    }
+
+    LaunchedEffect(isDragging) {
+        onDraggingChange(isDragging)
+        if (isDragging && pullDistance.value > 0f) {
+            pullDistance.snapTo(0f)
+            pullReadyScale.snapTo(1f)
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose { onDraggingChange(false) }
+    }
 
     var eventToDelete by remember { mutableStateOf<DateEvent?>(null) }
     var editingEvent by remember { mutableStateOf<DateEvent?>(null) }
     var originalEditingEvent by remember { mutableStateOf<DateEvent?>(null) }
     var showDiscardConfirmation by remember { mutableStateOf(false) }
     val isPopupOpen by rememberUpdatedState(editingEvent != null || eventToDelete != null)
+    val isPullDisabled by rememberUpdatedState(editingEvent != null || eventToDelete != null || isDragging)
 
     val pullToStoppedConnection = remember(pullThresholdPx, view, context) {
         object : NestedScrollConnection {
             private var reachedThreshold = false
 
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                if (isPopupOpen) return Offset.Zero
+                if (isPullDisabled) return Offset.Zero
                 // 已经下拉时往回推：先收回进度，不让列表滚动
                 if (source == NestedScrollSource.UserInput && available.y < 0f && pullDistance.value > 0f) {
                     val prev = pullDistance.value
@@ -136,7 +181,7 @@ fun HomeScreen(
             }
 
             override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
-                if (isPopupOpen || source != NestedScrollSource.UserInput || available.y <= 0f) return Offset.Zero
+                if (isPullDisabled || source != NestedScrollSource.UserInput || available.y <= 0f) return Offset.Zero
                 val prev = pullDistance.value
                 // 达到满圈后进一步加大阻尼，提供拉到底的张力手感
                 val damping = if (prev >= pullThresholdPx) 0.18f else 0.55f
@@ -158,7 +203,7 @@ fun HomeScreen(
             }
 
             override suspend fun onPreFling(available: Velocity): Velocity {
-                if (isPopupOpen) return Velocity.Zero
+                if (isPullDisabled) return Velocity.Zero
                 val shouldOpen = pullDistance.value >= pullThresholdPx
                 reachedThreshold = false
                 if (shouldOpen) {
@@ -209,8 +254,6 @@ fun HomeScreen(
             }
         }
     }
-
-    val lazyListState = rememberLazyListState()
 
     // 各事件可能有各自的 日期变更时间 ：等到下一个最早的切换点再刷新一次，未到点不重组。
     var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -284,52 +327,100 @@ fun HomeScreen(
                     )
                 }
             } else {
-                val gridState = rememberLazyGridState()
                 BoxWithConstraints(
                     modifier = Modifier
                         .fillMaxSize()
                         .offset { IntOffset(0, listOffsetY) }
                 ) {
                     val columns = if (maxWidth >= 600.dp) 2 else 1
+                    SideEffect {
+                        if (useGridLayout != (columns == 2)) {
+                            activeReorderState.cancelDrag()
+                            useGridLayout = (columns == 2)
+                        }
+                    }
 
                     if (columns == 1) {
                         // 手机：单列布局
                         LazyColumn(
                             state = lazyListState,
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .reorderableContainer(
+                                    state = listReorderState,
+                                    enabled = !isPopupOpen,
+                                ),
                             contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 120.dp),
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
-                            itemsIndexed(pinnedEventsState, key = { _, it -> "pinned_${it.id}" }) { _, event ->
-                                SwipeActionWrapper(
-                                    isResetRequested = editingEvent == null && eventToDelete == null,
-                                    isDeleting = eventToDelete?.id == event.id,
-                                    isEditing = editingEvent?.id == event.id,
-                                    onTrashClick = { eventToDelete = event },
-                                    onEditClick = {
-                                        showDiscardConfirmation = false
-                                        originalEditingEvent = event
-                                        editingEvent = event
-                                    }
+                            itemsIndexed(pinnedEventsState, key = { _, it -> it.id }) { _, event ->
+                                val isFloating = listReorderState.draggedId == event.id || listReorderState.settlingId == event.id
+                                ReorderableCardItem(
+                                    eventId = event.id,
+                                    state = listReorderState,
+                                    modifier = Modifier.animateItem(
+                                        fadeInSpec = null,
+                                        fadeOutSpec = null,
+                                        placementSpec = if (isFloating) null else spring(
+                                            stiffness = Spring.StiffnessMediumLow,
+                                            visibilityThreshold = IntOffset.VisibilityThreshold,
+                                        ),
+                                    ),
                                 ) {
-                                    // 编辑中的卡片直接读取 editingEvent 实时预览改动
-                                    PinnedEventCard(event = if (editingEvent?.id == event.id) editingEvent!! else event, onClick = { onEventClick(event) }, nowMillis = nowMillis)
+                                    SwipeActionWrapper(
+                                        isResetRequested = isDragging || (editingEvent == null && eventToDelete == null),
+                                        swipeEnabled = !isDragging,
+                                        isDeleting = eventToDelete?.id == event.id,
+                                        isEditing = editingEvent?.id == event.id,
+                                        onTrashClick = { eventToDelete = event },
+                                        onEditClick = {
+                                            showDiscardConfirmation = false
+                                            originalEditingEvent = event
+                                            editingEvent = event
+                                        }
+                                    ) {
+                                        // 编辑中的卡片直接读取 editingEvent 实时预览改动
+                                        PinnedEventCard(
+                                            event = if (editingEvent?.id == event.id) editingEvent!! else event,
+                                            onClick = { if (!isDragging) onEventClick(event) },
+                                            nowMillis = nowMillis,
+                                        )
+                                    }
                                 }
                             }
 
                             itemsIndexed(otherEventsState, key = { _, it -> it.id }) { _, event ->
-                                SwipeActionWrapper(
-                                    isResetRequested = editingEvent == null && eventToDelete == null,
-                                    isDeleting = eventToDelete?.id == event.id,
-                                    isEditing = editingEvent?.id == event.id,
-                                    onTrashClick = { eventToDelete = event },
-                                    onEditClick = {
-                                        showDiscardConfirmation = false
-                                        originalEditingEvent = event
-                                        editingEvent = event
-                                    }
+                                val isFloating = listReorderState.draggedId == event.id || listReorderState.settlingId == event.id
+                                ReorderableCardItem(
+                                    eventId = event.id,
+                                    state = listReorderState,
+                                    modifier = Modifier.animateItem(
+                                        fadeInSpec = null,
+                                        fadeOutSpec = null,
+                                        placementSpec = if (isFloating) null else spring(
+                                            stiffness = Spring.StiffnessMediumLow,
+                                            visibilityThreshold = IntOffset.VisibilityThreshold,
+                                        ),
+                                    ),
                                 ) {
-                                    NormalEventCard(event = if (editingEvent?.id == event.id) editingEvent!! else event, onClick = { onEventClick(event) }, nowMillis = nowMillis)
+                                    SwipeActionWrapper(
+                                        isResetRequested = isDragging || (editingEvent == null && eventToDelete == null),
+                                        swipeEnabled = !isDragging,
+                                        isDeleting = eventToDelete?.id == event.id,
+                                        isEditing = editingEvent?.id == event.id,
+                                        onTrashClick = { eventToDelete = event },
+                                        onEditClick = {
+                                            showDiscardConfirmation = false
+                                            originalEditingEvent = event
+                                            editingEvent = event
+                                        }
+                                    ) {
+                                        NormalEventCard(
+                                            event = if (editingEvent?.id == event.id) editingEvent!! else event,
+                                            onClick = { if (!isDragging) onEventClick(event) },
+                                            nowMillis = nowMillis,
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -339,27 +430,55 @@ fun HomeScreen(
                         LazyVerticalGrid(
                             columns = GridCells.Fixed(2),
                             state = gridState,
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .reorderableContainer(
+                                    state = gridReorderState,
+                                    enabled = !isPopupOpen,
+                                ),
                             contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 120.dp),
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
-                            items(allEvents, key = { "grid_${it.id}" }) { event ->
-                                SwipeActionWrapper(
-                                    isResetRequested = editingEvent == null && eventToDelete == null,
-                                    isDeleting = eventToDelete?.id == event.id,
-                                    isEditing = editingEvent?.id == event.id,
-                                    onTrashClick = { eventToDelete = event },
-                                    onEditClick = {
-                                        showDiscardConfirmation = false
-                                        originalEditingEvent = event
-                                        editingEvent = event
-                                    }
+                            items(allEvents, key = { it.id }) { event ->
+                                val isFloating = gridReorderState.draggedId == event.id || gridReorderState.settlingId == event.id
+                                ReorderableCardItem(
+                                    eventId = event.id,
+                                    state = gridReorderState,
+                                    modifier = Modifier.animateItem(
+                                        fadeInSpec = null,
+                                        fadeOutSpec = null,
+                                        placementSpec = if (isFloating) null else spring(
+                                            stiffness = Spring.StiffnessMediumLow,
+                                            visibilityThreshold = IntOffset.VisibilityThreshold,
+                                        ),
+                                    ),
                                 ) {
-                                    if (event.isPinned) {
-                                        PinnedEventCard(event = if (editingEvent?.id == event.id) editingEvent!! else event, onClick = { onEventClick(event) }, nowMillis = nowMillis)
-                                    } else {
-                                        NormalEventCard(event = if (editingEvent?.id == event.id) editingEvent!! else event, onClick = { onEventClick(event) }, nowMillis = nowMillis)
+                                    SwipeActionWrapper(
+                                        isResetRequested = isDragging || (editingEvent == null && eventToDelete == null),
+                                        swipeEnabled = !isDragging,
+                                        isDeleting = eventToDelete?.id == event.id,
+                                        isEditing = editingEvent?.id == event.id,
+                                        onTrashClick = { eventToDelete = event },
+                                        onEditClick = {
+                                            showDiscardConfirmation = false
+                                            originalEditingEvent = event
+                                            editingEvent = event
+                                        }
+                                    ) {
+                                        if (event.isPinned) {
+                                            PinnedEventCard(
+                                                event = if (editingEvent?.id == event.id) editingEvent!! else event,
+                                                onClick = { if (!isDragging) onEventClick(event) },
+                                                nowMillis = nowMillis,
+                                            )
+                                        } else {
+                                            NormalEventCard(
+                                                event = if (editingEvent?.id == event.id) editingEvent!! else event,
+                                                onClick = { if (!isDragging) onEventClick(event) },
+                                                nowMillis = nowMillis,
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -771,6 +890,7 @@ fun HomeScreen(
 @Composable
 fun SwipeActionWrapper(
     isResetRequested: Boolean,
+    swipeEnabled: Boolean = true,
     isDeleting: Boolean,
     isEditing: Boolean,
     onTrashClick: () -> Unit,
@@ -782,37 +902,45 @@ fun SwipeActionWrapper(
     val offsetX = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(isResetRequested) {
-        if (isResetRequested && (offsetX.value != 0f)) {
+    LaunchedEffect(isResetRequested, swipeEnabled) {
+        if ((!swipeEnabled || isResetRequested) && (offsetX.value != 0f)) {
             offsetX.animateTo(0f, spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow))
         }
     }
 
     Box(
-        modifier = Modifier.fillMaxWidth().pointerInput(Unit) {
-            detectHorizontalDragGestures(
-                onHorizontalDrag = { change, dragAmount ->
-                    change.consume()
-                    val nextX = offsetX.value + dragAmount
-                    val effectiveX = when {
-                        nextX < -revealWidth -> -revealWidth - (abs(nextX + revealWidth) * 150f / (abs(nextX + revealWidth) + 150f))
-                        nextX > revealWidth -> revealWidth + ((nextX - revealWidth) * 150f / ((nextX - revealWidth) + 150f))
-                        else -> nextX
-                    }
-                    scope.launch { offsetX.snapTo(effectiveX) }
-                },
-                onDragEnd = {
-                    val target = when {
-                        offsetX.value < -revealWidth * 0.45f -> -revealWidth
-                        offsetX.value > revealWidth * 0.45f -> revealWidth
-                        else -> 0f
-                    }
-                    scope.launch { 
-                        offsetX.animateTo(target, spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow))
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (!swipeEnabled) {
+                    Modifier
+                } else {
+                    Modifier.pointerInput(Unit) {
+                        detectHorizontalDragGestures(
+                            onHorizontalDrag = { change, dragAmount ->
+                                change.consume()
+                                val nextX = offsetX.value + dragAmount
+                                val effectiveX = when {
+                                    nextX < -revealWidth -> -revealWidth - (abs(nextX + revealWidth) * 150f / (abs(nextX + revealWidth) + 150f))
+                                    nextX > revealWidth -> revealWidth + ((nextX - revealWidth) * 150f / ((nextX - revealWidth) + 150f))
+                                    else -> nextX
+                                }
+                                scope.launch { offsetX.snapTo(effectiveX) }
+                            },
+                            onDragEnd = {
+                                val target = when {
+                                    offsetX.value < -revealWidth * 0.45f -> -revealWidth
+                                    offsetX.value > revealWidth * 0.45f -> revealWidth
+                                    else -> 0f
+                                }
+                                scope.launch {
+                                    offsetX.animateTo(target, spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow))
+                                }
+                            },
+                        )
                     }
                 }
             )
-        }
     ) {
         val deleteIconScale by animateFloatAsState(targetValue = if (isDeleting) 1.2f else 1f, animationSpec = spring(stiffness = Spring.StiffnessLow))
         val deleteIconAlpha by animateFloatAsState(targetValue = if (offsetX.value < -20f) (if (isDeleting) 1f else 0.9f) else 0f)
